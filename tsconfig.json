@@ -1,0 +1,48 @@
+{
+  "compilerOptions": {
+    // ── Output ───────────────────────────────────────────────────────────────
+    "target": "ES2022",           // Compile to ES2022 — supported natively by Node 18+
+    "module": "NodeNext",         // Use Node's native ESM resolution (honours package.json "exports")
+    "moduleResolution": "NodeNext", // Pair with module:NodeNext; resolves .js extensions correctly
+    "outDir": "dist",             // Compiled output goes to /dist
+    "rootDir": "src",             // All source files live under /src
+
+    // ── Source maps ───────────────────────────────────────────────────────────
+    "sourceMap": true,            // Generate .js.map files for debugger and stack trace mapping
+    "declarationMap": true,       // Generate .d.ts.map files alongside declarations
+
+    // ── Declaration files ─────────────────────────────────────────────────────
+    "declaration": true,          // Emit .d.ts type declaration files
+
+    // ── Strict mode ───────────────────────────────────────────────────────────
+    "strict": true,               // Enables all strict type-checking flags below as a group:
+                                  //   strictNullChecks, strictFunctionTypes, strictBindCallApply,
+                                  //   strictPropertyInitialization, noImplicitAny,
+                                  //   noImplicitThis, useUnknownInCatchVariables,
+                                  //   alwaysStrict
+    "noUncheckedIndexedAccess": true,  // arr[i] returns T | undefined — prevents silent index bugs
+    "noImplicitOverride": true,        // Methods overriding a base must use the override keyword
+    "noImplicitReturns": true,         // Every code path in a function must return a value
+    "noFallthroughCasesInSwitch": true, // switch cases must break or return
+
+    // ── Module interop ────────────────────────────────────────────────────────
+    "esModuleInterop": true,      // Allows default imports from CommonJS modules (e.g. import pg from 'pg')
+    "allowSyntheticDefaultImports": true, // Companion to esModuleInterop for type checking
+    "forceConsistentCasingInFileNames": true, // Prevent cross-platform casing bugs in imports
+
+    // ── Node.js types ─────────────────────────────────────────────────────────
+    "types": ["node"],            // Include @types/node — provides process, Buffer, crypto, fs, etc.
+
+    // ── Emit behaviour ────────────────────────────────────────────────────────
+    "skipLibCheck": true,         // Skip type-checking of .d.ts files in node_modules (faster builds)
+    "resolveJsonModule": true     // Allow importing .json files (e.g. package.json for version)
+  },
+
+  // ── Include / Exclude ────────────────────────────────────────────────────────
+  "include": ["src/**/*.ts"],     // Compile only files under src/
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests"                       // Tests are compiled separately (ts-jest or vitest handles them)
+  ]
+}
