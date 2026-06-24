@@ -5,7 +5,9 @@ import type { QuestionResult } from '../types/index.js';
 const VALID_RESULTS: QuestionResult[] = ['correct', 'incorrect'];
 
 function statusFromError(message: string): number {
-  if (message.includes('not found')) return 404;
+  if (message.includes('not found'))              return 404;
+  if (message.includes('not enough questions') ||
+      message.includes('greater than zero'))       return 400;
   return 500;
 }
 
@@ -60,6 +62,28 @@ export async function markQuestionResult(req: Request, res: Response): Promise<v
       result as QuestionResult,
     );
     res.status(200).json(updated);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unexpected error.';
+    res.status(statusFromError(message)).json({ error: message });
+  }
+}
+
+export async function addRandomQuestionsToReview(req: Request, res: Response): Promise<void> {
+  try {
+    const reviewId = req.params['reviewId'] as string;
+    const { count, topic } = req.body as { count?: unknown; topic?: unknown };
+
+    if (typeof count !== 'number' || !Number.isInteger(count) || count <= 0) {
+      res.status(400).json({ error: 'count must be a positive integer.' });
+      return;
+    }
+
+    const added = await reviewTheoryQuestionService.addRandomQuestionsToReview(
+      reviewId,
+      count,
+      typeof topic === 'string' ? topic : undefined,
+    );
+    res.status(201).json(added);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unexpected error.';
     res.status(statusFromError(message)).json({ error: message });
