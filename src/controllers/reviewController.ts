@@ -39,3 +39,21 @@ export async function getReview(req: Request, res: Response): Promise<void> {
     }
   }
 }
+
+export async function finalizeReview(req: Request, res: Response): Promise<void> {
+  try {
+    const id = req.params['id'] as string;
+    const review = await reviewService.finalizeReview(id);
+    res.status(200).json(review);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unexpected error.';
+
+    if (message.includes('not found')) {
+      res.status(404).json({ error: message });
+    } else if (message.includes('no questions')) {
+      res.status(400).json({ error: message });
+    } else {
+      res.status(500).json({ error: 'Internal server error.' });
+    }
+  }
+}

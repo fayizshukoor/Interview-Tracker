@@ -8,7 +8,13 @@ import type { Review } from '../types/index.js';
 interface ReviewRow {
   id: string;
   candidate_id: string;
+  status: string;
+  theory_score: string | null;   // pg returns NUMERIC as string
+  practical_score: string | null;
+  feedback: string | null;
+  conducted_at: Date | null;
   created_at: Date;
+  updated_at: Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -17,11 +23,23 @@ interface ReviewRow {
 
 function toReview(row: ReviewRow): Review {
   return {
-    id:          row.id,
-    candidateId: row.candidate_id,
-    createdAt:   row.created_at,
+    id:             row.id,
+    candidateId:    row.candidate_id,
+    status:         row.status,
+    theoryScore:    row.theory_score    !== null ? parseFloat(row.theory_score)    : null,
+    practicalScore: row.practical_score !== null ? parseFloat(row.practical_score) : null,
+    feedback:       row.feedback,
+    conductedAt:    row.conducted_at,
+    createdAt:      row.created_at,
+    updatedAt:      row.updated_at,
   };
 }
+
+// Columns selected by every query — defined once to avoid repetition
+const REVIEW_COLUMNS = `
+  id, candidate_id, status, theory_score, practical_score,
+  feedback, conducted_at, created_at, updated_at
+`;
 
 // ---------------------------------------------------------------------------
 // Repository methods
@@ -35,7 +53,7 @@ export async function create(candidateId: string): Promise<Review> {
   const { rows } = await pool.query<ReviewRow>(
     `INSERT INTO reviews (candidate_id)
      VALUES ($1)
-     RETURNING id, candidate_id, created_at`,
+     RETURNING ${REVIEW_COLUMNS}`,
     [candidateId],
   );
 
@@ -48,10 +66,31 @@ export async function create(candidateId: string): Promise<Review> {
  */
 export async function findById(id: string): Promise<Review | null> {
   const { rows } = await pool.query<ReviewRow>(
-    `SELECT id, candidate_id, created_at
+    `SELECT ${REVIEW_COLUMNS}
      FROM reviews
      WHERE id = $1`,
     [id],
+  );
+
+  return rows[0] ? toReview(rows[0]) : null;
+}
+
+/**
+ * Finalise a review: set status = 'finalized', record the theory score,
+ * and stamp conducted_at. Returns the updated Review.
+ */
+export async function updateFinalizedReview(
+  id: string,
+  theoryScore: number,
+): Promise<Review | null> {
+  const { rows } = await pool.query<ReviewRow>(
+    `UPDATE reviews
+     SET status       = 'finalized',
+         theory_score = $1,
+         conducted_at = now()
+     WHERE id = $2
+     RETURNING ${REVIEW_COLUMNS}`,
+    [theoryScore, id],
   );
 
   return rows[0] ? toReview(rows[0]) : null;

@@ -18,7 +18,13 @@ export interface Question {
 export interface Review {
   id: string;
   candidateId: string;
+  status: string;
+  theoryScore: number | null;
+  practicalScore: number | null;
+  feedback: string | null;
+  conductedAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export type QuestionResult = 'correct' | 'incorrect';
