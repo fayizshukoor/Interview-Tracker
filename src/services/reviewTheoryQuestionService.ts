@@ -74,3 +74,48 @@ export async function markQuestionResult(
 
   return updated;
 }
+
+export async function addRandomQuestionsToReview(
+  reviewId: string,
+  count: number,
+  topic?: string,
+): Promise<ReviewTheoryQuestion[]> {
+  const review = await reviewRepository.findById(reviewId);
+  if (!review) {
+    throw new Error(`Review with id "${reviewId}" not found.`);
+  }
+
+  if (count <= 0) {
+    throw new Error('Count must be greater than zero.');
+  }
+
+  const pool = topic
+    ? await questionRepository.findByTopic(topic)
+    : await questionRepository.findAll();
+
+  if (pool.length < count) {
+    throw new Error('Not enough questions available.');
+  }
+
+  // Fisher-Yates partial shuffle — pick `count` unique questions in O(count)
+  const shuffled = [...pool];
+  for (let i = 0; i < count; i++) {
+    const j = i + Math.floor(Math.random() * (shuffled.length - i));
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+  }
+  const selected = shuffled.slice(0, count);
+
+  const added = await Promise.all(
+    selected.map((q) =>
+      reviewTheoryQuestionRepository.create(
+        reviewId,
+        q.id,
+        q.questionText,
+        q.expectedAnswer,
+        q.topic,
+      ),
+    ),
+  );
+
+  return added;
+}
