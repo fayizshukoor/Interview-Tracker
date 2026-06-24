@@ -2,8 +2,8 @@
  * migrate.ts — PostgreSQL Migration Runner
  *
  * Usage:
- *   npx ts-node src/infrastructure/database/migrate.ts           # run pending migrations
- *   npx ts-node src/infrastructure/database/migrate.ts --rollback # drop all tables (dev only)
+ *   npx ts-node --esm src/database/migrate.ts           # run pending migrations
+ *   npx ts-node --esm src/database/migrate.ts --rollback # drop all tables (dev only)
  *
  * How it works:
  *   1. Connects to the database using DATABASE_URL from the environment.
@@ -18,18 +18,19 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { Client } from 'pg';
-import * as dotenv from 'dotenv';
+import 'dotenv/config.js';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
-const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
-
+const MIGRATIONS_DIR = path.resolve(process.cwd(), 'src/database/migrations');
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
   console.error('[migrate] ERROR: DATABASE_URL environment variable is not set.');
