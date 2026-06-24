@@ -14,3 +14,23 @@ export interface Question {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface Review {
+  id: string;
+  candidateId: string;
+  createdAt: Date;
+}
+
+export type QuestionResult = 'correct' | 'incorrect';
+
+export interface ReviewTheoryQuestion {
+  id: string;
+  reviewId: string;
+  questionId: string | null;
+  questionText: string;
+  expectedAnswer: string;
+  topic: string;
+  result: QuestionResult | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
