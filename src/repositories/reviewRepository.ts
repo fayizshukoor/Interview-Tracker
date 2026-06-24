@@ -95,3 +95,22 @@ export async function updateFinalizedReview(
 
   return rows[0] ? toReview(rows[0]) : null;
 }
+
+/**
+ * Update the feedback field on a review.
+ * Returns the updated Review, or null if the id is not found.
+ */
+export async function updateFeedback(
+  reviewId: string,
+  feedback: string,
+): Promise<Review | null> {
+  const { rows } = await pool.query<ReviewRow>(
+    `UPDATE reviews
+     SET feedback = $1
+     WHERE id = $2
+     RETURNING ${REVIEW_COLUMNS}`,
+    [feedback, reviewId],
+  );
+
+  return rows[0] ? toReview(rows[0]) : null;
+}

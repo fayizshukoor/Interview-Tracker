@@ -1,6 +1,7 @@
 import * as reviewTheoryQuestionRepository from '../repositories/reviewTheoryQuestionRepository.js';
 import * as questionRepository from '../repositories/questionRepository.js';
 import * as reviewRepository from '../repositories/reviewRepository.js';
+import * as reviewPendingTopicRepository from '../repositories/reviewPendingTopicRepository.js';
 import type { ReviewTheoryQuestion, QuestionResult } from '../types/index.js';
 
 export async function addQuestionsToReview(
@@ -61,6 +62,14 @@ export async function markQuestionResult(
 
   if (!updated) {
     throw new Error(`Review question with id "${reviewTheoryQuestionId}" not found.`);
+  }
+
+  if (result === 'incorrect') {
+    await reviewPendingTopicRepository.create(
+      updated.reviewId,
+      updated.topic,
+      updated.questionText,
+    );
   }
 
   return updated;

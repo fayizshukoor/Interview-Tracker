@@ -40,3 +40,11 @@ export interface ReviewTheoryQuestion {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface ReviewPendingTopic {
+  id: string;
+  reviewId: string;
+  topic: string;
+  questionText: string;
+  createdAt: Date;
+}

@@ -44,3 +44,23 @@ export async function finalizeReview(reviewId: string): Promise<Review> {
 
   return finalized;
 }
+
+export async function updateReviewFeedback(reviewId: string, feedback: string): Promise<Review> {
+  const trimmed = feedback.trim();
+
+  if (!trimmed) {
+    throw new Error('Feedback cannot be empty.');
+  }
+
+  const review = await reviewRepository.findById(reviewId);
+  if (!review) {
+    throw new Error(`Review with id "${reviewId}" not found.`);
+  }
+
+  const updated = await reviewRepository.updateFeedback(reviewId, trimmed);
+  if (!updated) {
+    throw new Error(`Review with id "${reviewId}" not found.`);
+  }
+
+  return updated;
+}

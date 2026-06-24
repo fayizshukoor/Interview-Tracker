@@ -57,3 +57,28 @@ export async function finalizeReview(req: Request, res: Response): Promise<void>
     }
   }
 }
+
+export async function updateReviewFeedback(req: Request, res: Response): Promise<void> {
+  try {
+    const id = req.params['id'] as string;
+    const { feedback } = req.body as { feedback?: string };
+
+    if (typeof feedback !== 'string') {
+      res.status(400).json({ error: 'feedback is required and must be a string.' });
+      return;
+    }
+
+    const review = await reviewService.updateReviewFeedback(id, feedback);
+    res.status(200).json(review);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unexpected error.';
+
+    if (message.includes('not found')) {
+      res.status(404).json({ error: message });
+    } else if (message.includes('cannot be empty')) {
+      res.status(400).json({ error: message });
+    } else {
+      res.status(500).json({ error: 'Internal server error.' });
+    }
+  }
+}
