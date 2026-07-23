@@ -5,29 +5,31 @@ import {
   getReviewQuestions,
   getPendingTopics,
   updateReviewFeedback,
+  getPracticalTasks,
 } from '../api/reviewApi';
 import { getCandidates } from '../api/candidateApi';
-import type { Review, ReviewTheoryQuestion, ReviewPendingTopic } from '../types/review';
+import type { Review, ReviewTheoryQuestion, ReviewPendingTopic, ReviewPracticalTask } from '../types/review';
 
 export default function ReviewSummaryPage() {
   const { reviewId } = useParams<{ reviewId: string }>();
-  const navigate     = useNavigate();
+  const navigate = useNavigate();
 
   // ── Data ──────────────────────────────────────────────────────────────────
-  const [review, setReview]       = useState<Review | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
   const [questions, setQuestions] = useState<ReviewTheoryQuestion[]>([]);
-  const [pending, setPending]     = useState<ReviewPendingTopic[]>([]);
+  const [pending, setPending] = useState<ReviewPendingTopic[]>([]);
+  const [practicalTasks, setPracticalTasks] = useState<ReviewPracticalTask[]>([]);
   const [candidateName, setCandidateName] = useState<string>('');
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // ── Feedback ──────────────────────────────────────────────────────────────
-  const [feedbackText, setFeedbackText]     = useState('');
+  const [feedbackText, setFeedbackText] = useState('');
   const [savingFeedback, setSavingFeedback] = useState(false);
-  const [feedbackMsg, setFeedbackMsg]       = useState<{ text: string; ok: boolean } | null>(null);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   // ── Clipboard ─────────────────────────────────────────────────────────────
-  const [copiedWith, setCopiedWith]       = useState(false);
+  const [copiedWith, setCopiedWith] = useState(false);
   const [copiedWithout, setCopiedWithout] = useState(false);
 
   // ── Load all data ─────────────────────────────────────────────────────────
@@ -38,12 +40,14 @@ export default function ReviewSummaryPage() {
       getReview(reviewId),
       getReviewQuestions(reviewId),
       getPendingTopics(reviewId),
+      getPracticalTasks(reviewId),
       getCandidates(),
     ])
-      .then(([r, qs, pt, candidates]) => {
+      .then(([r, qs, pt, practical, candidates]) => {
         setReview(r);
         setQuestions(qs);
         setPending(pt);
+        setPracticalTasks(practical);
         setFeedbackText(r.feedback ?? '');
         const match = candidates.find((c) => c.id === r.candidateId);
         setCandidateName(match?.name ?? r.candidateId);
@@ -53,10 +57,10 @@ export default function ReviewSummaryPage() {
   }, [reviewId]);
 
   // ── Derived stats ─────────────────────────────────────────────────────────
-  const total     = questions.length;
-  const correct   = questions.filter((q) => q.result === 'correct').length;
+  const total = questions.length;
+  const correct = questions.filter((q) => q.result === 'correct').length;
   const incorrect = questions.filter((q) => q.result === 'incorrect').length;
-  const pct       = total > 0 ? ((correct / total) * 100).toFixed(1) : '—';
+  const pct = total > 0 ? ((correct / total) * 100).toFixed(1) : '—';
 
   // ── Save feedback ─────────────────────────────────────────────────────────
   const handleSaveFeedback = useCallback(async () => {
@@ -150,8 +154,8 @@ export default function ReviewSummaryPage() {
         <h2 style={sectionTitle}>Review Details</h2>
         <table style={{ borderCollapse: 'collapse' }}>
           <tbody>
-            <Row label="Candidate"    value={candidateName} />
-            <Row label="Status"       value={<StatusBadge status={review.status} />} />
+            <Row label="Candidate" value={candidateName} />
+            <Row label="Status" value={<StatusBadge status={review.status} />} />
             <Row label="Theory Score" value={review.theoryScore !== null ? `${review.theoryScore}%` : '—'} />
             <Row label="Practical Score" value={review.practicalScore !== null ? `${review.practicalScore}%` : '—'} />
             <Row
@@ -167,9 +171,9 @@ export default function ReviewSummaryPage() {
         <h2 style={sectionTitle}>Summary</h2>
         <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <Stat label="Total" value={String(total)} />
-          <Stat label="Correct"   value={String(correct)}   colour="#155724" />
+          <Stat label="Correct" value={String(correct)} colour="#155724" />
           <Stat label="Incorrect" value={String(incorrect)} colour="#721c24" />
-          <Stat label="Score"     value={`${pct}%`}         colour="#1a56db" />
+          <Stat label="Score" value={`${pct}%`} colour="#1a56db" />
         </div>
       </section>
 
@@ -224,6 +228,45 @@ export default function ReviewSummaryPage() {
                   <td style={tdStyle}>{pt.questionText}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* ── Practical tasks ── */}
+      <section style={cardStyle}>
+        <h2 style={sectionTitle}>Practical Tasks</h2>
+        {practicalTasks.length === 0 ? (
+          <p style={{ color: '#888' }}>No practical tasks recorded.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>#</th>
+                <th style={thStyle}>Task</th>
+                <th style={thStyle}>Start</th>
+                <th style={thStyle}>End</th>
+                <th style={thStyle}>Duration</th>
+                <th style={thStyle}>Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {practicalTasks.map((t, i) => {
+                const start = t.startTime ? new Date(t.startTime).getTime() : null;
+                const end = t.endTime ? new Date(t.endTime).getTime() : null;
+                const dur = start && end ? Math.max(0, Math.floor((end - start) / 1000)) : (start && !end ? Math.max(0, Math.floor((Date.now() - start) / 1000)) : null);
+                function fmt(s?: string | null) { return s ? new Date(s).toLocaleString() : '—'; }
+                return (
+                  <tr key={t.id}>
+                    <td style={{ ...tdStyle, color: '#888', width: '36px' }}>{i + 1}</td>
+                    <td style={tdStyle}>{t.taskText}</td>
+                    <td style={tdStyle}>{fmt(t.startTime)}</td>
+                    <td style={tdStyle}>{t.endTime ? fmt(t.endTime) : (t.startTime ? 'Running…' : '—')}</td>
+                    <td style={tdStyle}>{dur !== null ? `${Math.floor(dur / 60)}m ${dur % 60}s` : '—'}</td>
+                    <td style={tdStyle}>{t.score !== null ? String(t.score) : '—'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -354,7 +397,7 @@ function Stat({ label, value, colour = '#333' }: { label: string; value: string;
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const bg    = status === 'finalized' ? '#d4edda' : '#fff3cd';
+  const bg = status === 'finalized' ? '#d4edda' : '#fff3cd';
   const color = status === 'finalized' ? '#155724' : '#856404';
   return (
     <span style={{ background: bg, color, padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
@@ -364,7 +407,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function resultColour(result: 'correct' | 'incorrect' | null): React.CSSProperties {
-  if (result === 'correct')   return { color: '#155724', fontWeight: 600 };
+  if (result === 'correct') return { color: '#155724', fontWeight: 600 };
   if (result === 'incorrect') return { color: '#721c24', fontWeight: 600 };
   return { color: '#888' };
 }

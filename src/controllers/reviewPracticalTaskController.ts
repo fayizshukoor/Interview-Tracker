@@ -2,9 +2,9 @@ import type { Request, Response } from 'express';
 import * as service from '../services/reviewPracticalTaskService.js';
 
 function statusFromError(message: string): number {
-  if (message.includes('not found'))      return 404;
+  if (message.includes('not found')) return 404;
   if (message.includes('cannot be empty') ||
-      message.includes('must be between')) return 400;
+    message.includes('must be between')) return 400;
   return 500;
 }
 
@@ -67,6 +67,38 @@ export async function deletePracticalTask(req: Request, res: Response): Promise<
     const taskId = req.params['taskId'] as string;
     await service.deletePracticalTask(taskId);
     res.status(204).send();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unexpected error.';
+    res.status(statusFromError(message)).json({ error: message });
+  }
+}
+
+export async function startPracticalTask(req: Request, res: Response): Promise<void> {
+  try {
+    const taskId = req.params['taskId'] as string;
+    const { startedAt } = req.body as { startedAt?: string };
+    if (typeof startedAt !== 'string') {
+      res.status(400).json({ error: 'startedAt (ISO string) is required.' });
+      return;
+    }
+    const task = await service.setPracticalTaskStarted(taskId, startedAt);
+    res.status(200).json(task);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unexpected error.';
+    res.status(statusFromError(message)).json({ error: message });
+  }
+}
+
+export async function stopPracticalTask(req: Request, res: Response): Promise<void> {
+  try {
+    const taskId = req.params['taskId'] as string;
+    const { endedAt } = req.body as { endedAt?: string };
+    if (typeof endedAt !== 'string') {
+      res.status(400).json({ error: 'endedAt (ISO string) is required.' });
+      return;
+    }
+    const task = await service.setPracticalTaskEnded(taskId, endedAt);
+    res.status(200).json(task);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unexpected error.';
     res.status(statusFromError(message)).json({ error: message });

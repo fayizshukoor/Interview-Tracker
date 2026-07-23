@@ -11,15 +11,16 @@ import reviewPracticalTaskRoutes from './routes/reviewPracticalTaskRoutes.js';
 
 const app = express();
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+// Expose X-Total-Count so the frontend can read pagination totals from responses
+app.use(cors({ origin: 'http://localhost:5173', exposedHeaders: ['X-Total-Count'] }));
 app.use(express.json());
 
-app.use('/candidates',          candidateRoutes);
-app.use('/questions',           questionRoutes);
+app.use('/candidates', candidateRoutes);
+app.use('/questions', questionRoutes);
 app.use('/practical-questions', practicalQuestionRoutes);
-app.use('/reviews',             reviewRoutes);
-app.use('/',                    reviewTheoryQuestionRoutes);
-app.use('/',                    reviewPendingTopicRoutes);
-app.use('/',                    reviewPracticalTaskRoutes);
+app.use('/reviews', reviewRoutes);
+app.use('/', reviewTheoryQuestionRoutes);
+app.use('/', reviewPendingTopicRoutes);
+app.use('/', reviewPracticalTaskRoutes);
 
 export default app;

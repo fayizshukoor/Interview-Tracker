@@ -23,15 +23,15 @@ interface ReviewRow {
 
 function toReview(row: ReviewRow): Review {
   return {
-    id:             row.id,
-    candidateId:    row.candidate_id,
-    status:         row.status,
-    theoryScore:    row.theory_score    !== null ? parseFloat(row.theory_score)    : null,
+    id: row.id,
+    candidateId: row.candidate_id,
+    status: row.status,
+    theoryScore: row.theory_score !== null ? parseFloat(row.theory_score) : null,
     practicalScore: row.practical_score !== null ? parseFloat(row.practical_score) : null,
-    feedback:       row.feedback,
-    conductedAt:    row.conducted_at,
-    createdAt:      row.created_at,
-    updatedAt:      row.updated_at,
+    feedback: row.feedback,
+    conductedAt: row.conducted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -169,6 +169,25 @@ export async function findAll(params: {
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+  // Count total matching
+  const countRes = await pool.query<{ count: string }>(
+    `SELECT COUNT(DISTINCT r.id)::TEXT AS count
+     FROM reviews r
+     ${where}`,
+    values,
+  );
+  const total = parseInt(countRes.rows[0]?.count ?? '0', 10);
+
+  // Pagination
+  const page = typeof (params as any).page === 'number' ? (params as any).page : undefined;
+  const pageSize = typeof (params as any).pageSize === 'number' ? (params as any).pageSize : undefined;
+  const limitOffset: string[] = [];
+  if (typeof page === 'number' && typeof pageSize === 'number') {
+    const offset = page * pageSize;
+    values.push(pageSize, offset);
+    limitOffset.push(`LIMIT $${values.length - 1}`, `OFFSET $${values.length}`);
+  }
+
   const { rows } = await pool.query<ReviewWithCandidateRow>(
     `SELECT ${REVIEW_WITH_CANDIDATE_COLUMNS}
      FROM reviews r
@@ -176,13 +195,25 @@ export async function findAll(params: {
      LEFT JOIN review_theory_questions rtq ON rtq.review_id = r.id
      ${where}
      GROUP BY r.id, c.name
-     ORDER BY r.created_at DESC`,
+     ORDER BY r.created_at DESC
+     ${limitOffset.join(' ')}`,
     values,
   );
 
-  return rows.map((row) => ({
-    ...toReview(row),
-    candidateName:  row.candidate_name,
-    questionCount:  row.question_count,
-  }));
+  return {
+    items: rows.map((row) => ({
+      ...toReview(row),
+      candidateName: row.candidate_name,
+      questionCount: row.question_count,
+    })),
+    total,
+  } as unknown as any;
+}
+
+export async function deleteById(id: string): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `DELETE FROM reviews WHERE id = $1`,
+    [id],
+  );
+  return (rowCount ?? 0) > 0;
 }

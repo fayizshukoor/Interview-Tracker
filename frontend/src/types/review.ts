@@ -24,6 +24,8 @@ export interface ReviewPracticalTask {
   taskText: string;
   expectedAnswer: string | null;
   score: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
   createdAt: string;
   updatedAt: string;
 }

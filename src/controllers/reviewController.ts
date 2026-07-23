@@ -10,11 +10,30 @@ export async function listReviews(req: Request, res: Response): Promise<void> {
       ? req.query['status']
       : undefined;
 
-    const reviews = await reviewService.listReviews({ candidateId, status });
-    res.status(200).json(reviews);
+    const page = typeof req.query['page'] === 'string' ? parseInt(req.query['page'], 10) : undefined;
+    const pageSize = typeof req.query['pageSize'] === 'string' ? parseInt(req.query['pageSize'], 10) : undefined;
+
+    const result = await reviewService.listReviews({ candidateId, status, page, pageSize });
+    res.setHeader('X-Total-Count', String(result.total));
+    res.status(200).json(result.items);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unexpected error.';
     res.status(500).json({ error: message });
+  }
+}
+
+export async function deleteReview(req: Request, res: Response): Promise<void> {
+  try {
+    const id = req.params['id'] as string;
+    await reviewService.deleteReview(id);
+    res.status(204).send();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unexpected error.';
+    if (message.includes('not found')) {
+      res.status(404).json({ error: message });
+    } else {
+      res.status(500).json({ error: 'Internal server error.' });
+    }
   }
 }
 

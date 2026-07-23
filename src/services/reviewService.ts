@@ -42,7 +42,7 @@ export async function finalizeReview(reviewId: string): Promise<Review> {
 
   // Compute theory score
   const correctCount = questions.filter((q) => q.result === 'correct').length;
-  const theoryScore  = parseFloat(((correctCount / questions.length) * 100).toFixed(2));
+  const theoryScore = parseFloat(((correctCount / questions.length) * 100).toFixed(2));
 
   // Compute practical score — average of all scored tasks (ignore unscored)
   const tasks = await reviewPracticalTaskRepository.findByReviewId(reviewId);
@@ -82,6 +82,13 @@ export async function updateReviewFeedback(reviewId: string, feedback: string): 
 export async function listReviews(params: {
   candidateId?: string;
   status?: string;
-} = {}): Promise<(Review & { candidateName: string; questionCount: number })[]> {
-  return reviewRepository.findAll(params);
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{ items: (Review & { candidateName: string; questionCount: number })[]; total: number }> {
+  return reviewRepository.findAll(params) as any;
+}
+
+export async function deleteReview(reviewId: string): Promise<void> {
+  const deleted = await reviewRepository.deleteById(reviewId);
+  if (!deleted) throw new Error(`Review with id "${reviewId}" not found.`);
 }

@@ -41,3 +41,15 @@ export async function deletePracticalTask(taskId: string): Promise<void> {
   const deleted = await repo.deleteById(taskId);
   if (!deleted) throw new Error(`Practical task with id "${taskId}" not found.`);
 }
+
+export async function setPracticalTaskStarted(taskId: string, startedAt: string): Promise<ReviewPracticalTask> {
+  const updated = await repo.setStartTime(taskId, startedAt);
+  if (!updated) throw new Error(`Practical task with id "${taskId}" not found.`);
+  return updated;
+}
+
+export async function setPracticalTaskEnded(taskId: string, endedAt: string): Promise<ReviewPracticalTask> {
+  const updated = await repo.setEndTime(taskId, endedAt);
+  if (!updated) throw new Error(`Practical task with id "${taskId}" not found.`);
+  return updated;
+}

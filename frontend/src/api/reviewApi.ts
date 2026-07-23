@@ -77,9 +77,16 @@ export async function updateReviewFeedback(
 export async function listReviews(params?: {
   candidateId?: string;
   status?: string;
-}): Promise<ReviewListItem[]> {
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: ReviewListItem[]; total: number }> {
   const response = await client.get<ReviewListItem[]>('/reviews', { params });
-  return response.data;
+  const total = Number(response.headers['x-total-count'] ?? 0);
+  return { items: response.data, total };
+}
+
+export async function deleteReview(reviewId: string): Promise<void> {
+  await client.delete(`/reviews/${reviewId}`);
 }
 
 // ── Practical tasks ────────────────────────────────────────────────────────
@@ -118,4 +125,14 @@ export async function scorePracticalTask(
 
 export async function deletePracticalTask(taskId: string): Promise<void> {
   await client.delete(`/practical-tasks/${taskId}`);
+}
+
+export async function startPracticalTaskTimer(taskId: string, startedAt: string): Promise<ReviewPracticalTask> {
+  const response = await client.patch<ReviewPracticalTask>(`/practical-tasks/${taskId}/start`, { startedAt });
+  return response.data;
+}
+
+export async function stopPracticalTaskTimer(taskId: string, endedAt: string): Promise<ReviewPracticalTask> {
+  const response = await client.patch<ReviewPracticalTask>(`/practical-tasks/${taskId}/stop`, { endedAt });
+  return response.data;
 }

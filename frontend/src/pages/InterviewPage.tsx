@@ -8,6 +8,8 @@ import {
   getPracticalTasks,
   scorePracticalTask,
   deletePracticalTask,
+  startPracticalTaskTimer,
+  stopPracticalTaskTimer,
   finalizeReview,
 } from '../api/reviewApi';
 import { getQuestions } from '../api/questionApi';
@@ -18,48 +20,48 @@ type Phase = 'theory' | 'practical';
 
 export default function InterviewPage() {
   const { reviewId } = useParams<{ reviewId: string }>();
-  const navigate     = useNavigate();
+  const navigate = useNavigate();
 
   // ── Theory ────────────────────────────────────────────────────────────────
-  const [questions, setQuestions]         = useState<ReviewTheoryQuestion[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [loadError, setLoadError]         = useState<string | null>(null);
-  const [currentIndex, setCurrentIndex]   = useState(0);
+  const [questions, setQuestions] = useState<ReviewTheoryQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [answerVisible, setAnswerVisible] = useState(false);
-  const [marking, setMarking]             = useState(false);
-  const [markError, setMarkError]         = useState<string | null>(null);
+  const [marking, setMarking] = useState(false);
+  const [markError, setMarkError] = useState<string | null>(null);
 
   // ── Phase ─────────────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>('theory');
 
   // ── Question bank picker ───────────────────────────────────────────────────
-  const [bankOpen, setBankOpen]           = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
   const [bankQuestions, setBankQuestions] = useState<Question[]>([]);
-  const [bankLoading, setBankLoading]     = useState(false);
-  const [bankFilter, setBankFilter]       = useState('');
-  const [pickedIds, setPickedIds]         = useState<Set<string>>(new Set());
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankFilter, setBankFilter] = useState('');
+  const [pickedIds, setPickedIds] = useState<Set<string>>(new Set());
   const [addingFromBank, setAddingFromBank] = useState(false);
-  const [bankError, setBankError]         = useState<string | null>(null);
+  const [bankError, setBankError] = useState<string | null>(null);
 
   // ── Practical ─────────────────────────────────────────────────────────────
   const [practicalTasks, setPracticalTasks] = useState<ReviewPracticalTask[]>([]);
-  const [newTaskText, setNewTaskText]       = useState('');
-  const [newExpected, setNewExpected]       = useState('');
-  const [addingTask, setAddingTask]         = useState(false);
-  const [addTaskError, setAddTaskError]     = useState<string | null>(null);
+  const [newTaskText, setNewTaskText] = useState('');
+  const [newExpected, setNewExpected] = useState('');
+  const [addingTask, setAddingTask] = useState(false);
+  const [addTaskError, setAddTaskError] = useState<string | null>(null);
 
   // ── Timer ─────────────────────────────────────────────────────────────────
-  const [timers, setTimers]             = useState<Record<string, number>>({});
+  const [timers, setTimers] = useState<Record<string, number>>({});
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
-  const intervalRef                     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Scoring ───────────────────────────────────────────────────────────────
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
-  const [scoringId, setScoringId]     = useState<string | null>(null);
+  const [scoringId, setScoringId] = useState<string | null>(null);
   const [scoreErrors, setScoreErrors] = useState<Record<string, string>>({});
 
   // ── Finalize ──────────────────────────────────────────────────────────────
-  const [finalizing, setFinalizing]       = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
 
   // ── Load theory questions on mount ────────────────────────────────────────
@@ -79,10 +81,38 @@ export default function InterviewPage() {
       .then((tasks) => {
         setPracticalTasks(tasks);
         const inputs: Record<string, string> = {};
-        tasks.forEach((t) => { inputs[t.id] = t.score !== null ? String(t.score) : ''; });
+        const initialTimers: Record<string, number> = {};
+        let runningId: string | null = null;
+
+        tasks.forEach((t) => {
+          inputs[t.id] = t.score !== null ? String(t.score) : '';
+          if (t.startTime) {
+            const start = new Date(t.startTime).getTime();
+            if (t.endTime) {
+              const end = new Date(t.endTime).getTime();
+              initialTimers[t.id] = Math.max(0, Math.floor((end - start) / 1000));
+            } else {
+              // running task
+              const now = Date.now();
+              initialTimers[t.id] = Math.max(0, Math.floor((now - start) / 1000));
+              runningId = t.id;
+            }
+          } else {
+            initialTimers[t.id] = 0;
+          }
+        });
+
         setScoreInputs(inputs);
+        setTimers(initialTimers);
+        if (runningId) {
+          setRunningTaskId(runningId);
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          intervalRef.current = setInterval(() => {
+            setTimers((prev) => ({ ...prev, [runningId!]: (prev[runningId!] ?? 0) + 1 }));
+          }, 1000);
+        }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [phase, reviewId]);
 
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
@@ -108,10 +138,10 @@ export default function InterviewPage() {
 
   const filteredBank = bankFilter.trim()
     ? bankQuestions.filter(
-        (q) =>
-          q.questionText.toLowerCase().includes(bankFilter.toLowerCase()) ||
-          q.topic.toLowerCase().includes(bankFilter.toLowerCase()),
-      )
+      (q) =>
+        q.questionText.toLowerCase().includes(bankFilter.toLowerCase()) ||
+        q.topic.toLowerCase().includes(bankFilter.toLowerCase()),
+    )
     : bankQuestions;
 
   async function handleAddFromBank() {
@@ -131,18 +161,61 @@ export default function InterviewPage() {
   }
 
   // ── Timer helpers ─────────────────────────────────────────────────────────
-  const startTimer = useCallback((taskId: string) => {
+  const startTimer = useCallback(async (taskId: string) => {
+    // stop any running task first (persist end time)
+    const prev = runningTaskId;
+    if (prev && prev !== taskId) {
+      try {
+        await stopPracticalTaskTimer(prev, new Date().toISOString());
+      } catch {
+        // ignore persistence failure
+      }
+    }
+
     if (intervalRef.current) clearInterval(intervalRef.current);
+
+    // persist start time and update task locally
+    try {
+      const updated = await startPracticalTaskTimer(taskId, new Date().toISOString());
+      setPracticalTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      // initialize timer for this task
+      const start = updated.startTime ? new Date(updated.startTime).getTime() : Date.now();
+      const now = Date.now();
+      setTimers((prev) => ({ ...prev, [taskId]: Math.max(0, Math.floor((now - start) / 1000)) }));
+    } catch (err) {
+      // surface errors to console for debugging
+      // (UI remains resilient; we still start the local timer)
+      // eslint-disable-next-line no-console
+      console.error('Failed to persist start time', err);
+    }
+
     setRunningTaskId(taskId);
     intervalRef.current = setInterval(() => {
       setTimers((prev) => ({ ...prev, [taskId]: (prev[taskId] ?? 0) + 1 }));
     }, 1000);
-  }, []);
+  }, [runningTaskId]);
 
-  const stopTimer = useCallback(() => {
+  const stopTimer = useCallback(async (taskId?: string) => {
+    const idToStop = taskId ?? runningTaskId;
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
     setRunningTaskId(null);
-  }, []);
+
+    if (!idToStop) return;
+    try {
+      const updated = await stopPracticalTaskTimer(idToStop, new Date().toISOString());
+      setPracticalTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      // set final elapsed based on persisted times
+      if (updated.startTime && updated.endTime) {
+        const start = new Date(updated.startTime).getTime();
+        const end = new Date(updated.endTime).getTime();
+        setTimers((prev) => ({ ...prev, [idToStop]: Math.max(0, Math.floor((end - start) / 1000)) }));
+      }
+    } catch (err) {
+      // surface errors to console for debugging
+      // eslint-disable-next-line no-console
+      console.error('Failed to persist end time', err);
+    }
+  }, [runningTaskId]);
 
   function formatTime(secs: number): string {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -211,7 +284,7 @@ export default function InterviewPage() {
   // ── Finalize ──────────────────────────────────────────────────────────────
   async function handleFinalize() {
     if (!reviewId) return;
-    stopTimer();
+    await stopTimer();
     setFinalizing(true); setFinalizeError(null);
     try {
       await finalizeReview(reviewId);
@@ -222,9 +295,9 @@ export default function InterviewPage() {
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const total    = questions.length;
-  const current  = questions[currentIndex];
-  const isLast   = total > 0 && currentIndex === total - 1;
+  const total = questions.length;
+  const current = questions[currentIndex];
+  const isLast = total > 0 && currentIndex === total - 1;
   const isMarked = current?.result !== null && current?.result !== undefined;
 
   // ── Render: loading / error ───────────────────────────────────────────────
@@ -263,8 +336,8 @@ export default function InterviewPage() {
 
         <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px', marginBottom: '0.75rem' }}>
           {filteredBank.map((q) => {
-            const isAdded   = alreadyAddedIds.has(q.id);
-            const isPicked  = pickedIds.has(q.id);
+            const isAdded = alreadyAddedIds.has(q.id);
+            const isPicked = pickedIds.has(q.id);
             return (
               <label
                 key={q.id}
@@ -457,7 +530,7 @@ export default function InterviewPage() {
       )}
 
       {practicalTasks.map((task, idx) => {
-        const elapsed   = timers[task.id] ?? 0;
+        const elapsed = timers[task.id] ?? 0;
         const isRunning = runningTaskId === task.id;
         return (
           <section key={task.id} style={{ ...S.card, borderLeft: isRunning ? '4px solid #1a56db' : '4px solid #e5e7eb' }}>
@@ -487,7 +560,7 @@ export default function InterviewPage() {
                   ▶ Start Timer
                 </button>
               ) : (
-                <button onClick={stopTimer}
+                <button onClick={() => stopTimer(task.id)}
                   style={{ ...S.btn, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 600 }}>
                   ■ Stop Timer
                 </button>
@@ -505,6 +578,10 @@ export default function InterviewPage() {
               {task.score !== null && <span style={{ fontSize: '0.85rem', color: '#15803d', fontWeight: 600 }}>✓ {task.score}</span>}
             </div>
             {scoreErrors[task.id] && <p style={S.error}>{scoreErrors[task.id]}</p>}
+            <div style={{ marginTop: '0.6rem', fontSize: '0.88rem', color: '#555' }}>
+              <div>Start: {task.startTime ? new Date(task.startTime).toLocaleString() : '—'}</div>
+              <div>End: {task.endTime ? new Date(task.endTime).toLocaleString() : (isRunning ? 'Running…' : '—')}</div>
+            </div>
           </section>
         );
       })}
@@ -531,8 +608,8 @@ function Wrap({ children }: { children: React.ReactNode }) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const S = {
-  card:  { border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1.25rem', marginBottom: '1rem', background: '#fff' } as React.CSSProperties,
-  btn:   { padding: '0.5rem 1rem', fontSize: '0.95rem', cursor: 'pointer', borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', fontFamily: 'inherit' } as React.CSSProperties,
+  card: { border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1.25rem', marginBottom: '1rem', background: '#fff' } as React.CSSProperties,
+  btn: { padding: '0.5rem 1rem', fontSize: '0.95rem', cursor: 'pointer', borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', fontFamily: 'inherit' } as React.CSSProperties,
   input: { padding: '0.5rem 0.65rem', fontSize: '0.95rem', border: '1.5px solid #d1d5db', borderRadius: '6px', width: '100%', boxSizing: 'border-box' as const, fontFamily: 'inherit' } as React.CSSProperties,
   error: { color: '#b91c1c', fontSize: '0.875rem', margin: '0.25rem 0' } as React.CSSProperties,
   modal: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' },

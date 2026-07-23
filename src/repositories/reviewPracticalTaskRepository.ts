@@ -11,6 +11,8 @@ interface ReviewPracticalTaskRow {
   task_text: string;
   expected_answer: string | null;
   score: string | null;     // pg returns NUMERIC as string
+  start_time: Date | null;
+  end_time: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -21,17 +23,19 @@ interface ReviewPracticalTaskRow {
 
 function toTask(row: ReviewPracticalTaskRow): ReviewPracticalTask {
   return {
-    id:             row.id,
-    reviewId:       row.review_id,
-    taskText:       row.task_text,
+    id: row.id,
+    reviewId: row.review_id,
+    taskText: row.task_text,
     expectedAnswer: row.expected_answer,
-    score:          row.score !== null ? parseFloat(row.score) : null,
-    createdAt:      row.created_at,
-    updatedAt:      row.updated_at,
+    score: row.score !== null ? parseFloat(row.score) : null,
+    startTime: row.start_time ?? null,
+    endTime: row.end_time ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
-const COLUMNS = `id, review_id, task_text, expected_answer, score, created_at, updated_at`;
+const COLUMNS = `id, review_id, task_text, expected_answer, score, start_time, end_time, created_at, updated_at`;
 
 // ---------------------------------------------------------------------------
 // Repository methods
@@ -47,8 +51,8 @@ export async function create(
   expectedAnswer: string | null,
 ): Promise<ReviewPracticalTask> {
   const { rows } = await pool.query<ReviewPracticalTaskRow>(
-    `INSERT INTO review_practical_tasks (review_id, task_text, expected_answer)
-     VALUES ($1, $2, $3)
+    `INSERT INTO review_practical_tasks (review_id, task_text, expected_answer, start_time, end_time)
+     VALUES ($1, $2, $3, NULL, NULL)
      RETURNING ${COLUMNS}`,
     [reviewId, taskText, expectedAnswer],
   );
@@ -87,6 +91,28 @@ export async function updateScore(
     [score, id],
   );
 
+  return rows[0] ? toTask(rows[0]) : null;
+}
+
+export async function setStartTime(id: string, startedAt: string): Promise<ReviewPracticalTask | null> {
+  const { rows } = await pool.query<ReviewPracticalTaskRow>(
+    `UPDATE review_practical_tasks
+     SET start_time = $1
+     WHERE id = $2
+     RETURNING ${COLUMNS}`,
+    [startedAt, id],
+  );
+  return rows[0] ? toTask(rows[0]) : null;
+}
+
+export async function setEndTime(id: string, endedAt: string): Promise<ReviewPracticalTask | null> {
+  const { rows } = await pool.query<ReviewPracticalTaskRow>(
+    `UPDATE review_practical_tasks
+     SET end_time = $1
+     WHERE id = $2
+     RETURNING ${COLUMNS}`,
+    [endedAt, id],
+  );
   return rows[0] ? toTask(rows[0]) : null;
 }
 
