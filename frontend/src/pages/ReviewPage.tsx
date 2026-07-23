@@ -6,11 +6,16 @@ import {
   addManualQuestions,
   addRandomQuestions,
   getReviewQuestions,
+  addPracticalTask,
+  getPracticalTasks,
+  deletePracticalTask,
 } from '../api/reviewApi';
 import { getQuestions } from '../api/questionApi';
+import { getPracticalQuestions } from '../api/practicalQuestionApi';
 import type { Candidate } from '../types/candidate';
-import type { ReviewTheoryQuestion } from '../types/review';
+import type { ReviewTheoryQuestion, ReviewPracticalTask } from '../types/review';
 import type { Question } from '../types/question';
+import type { PracticalQuestion } from '../types/review';
 
 type QuestionMode = 'manual' | 'random';
 
@@ -18,29 +23,38 @@ export default function ReviewPage() {
   const navigate = useNavigate();
 
   // ── Section 1 ─────────────────────────────────────────────────────────────
-  const [candidates, setCandidates]               = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [candidatesLoading, setCandidatesLoading] = useState(true);
-  const [candidatesError, setCandidatesError]     = useState<string | null>(null);
+  const [candidatesError, setCandidatesError] = useState<string | null>(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState('');
-  const [reviewId, setReviewId]                   = useState<string | null>(null);
-  const [creatingReview, setCreatingReview]       = useState(false);
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const [creatingReview, setCreatingReview] = useState(false);
   const [createReviewError, setCreateReviewError] = useState<string | null>(null);
 
   // ── Section 2 ─────────────────────────────────────────────────────────────
-  const [mode, setMode]                           = useState<QuestionMode>('manual');
-  const [allQuestions, setAllQuestions]           = useState<Question[]>([]);
-  const [questionsLoading, setQuestionsLoading]   = useState(false);
-  const [selectedIds, setSelectedIds]             = useState<Set<string>>(new Set());
-  const [addingManual, setAddingManual]           = useState(false);
-  const [manualError, setManualError]             = useState<string | null>(null);
-  const [randomCount, setRandomCount]             = useState('10');
-  const [randomTopic, setRandomTopic]             = useState('');
-  const [addingRandom, setAddingRandom]           = useState(false);
-  const [randomError, setRandomError]             = useState<string | null>(null);
+  const [mode, setMode] = useState<QuestionMode>('manual');
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [addingManual, setAddingManual] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
+  const [randomCount, setRandomCount] = useState('10');
+  const [randomTopic, setRandomTopic] = useState('');
+  const [addingRandom, setAddingRandom] = useState(false);
+  const [randomError, setRandomError] = useState<string | null>(null);
 
   // ── Section 3 ─────────────────────────────────────────────────────────────
-  const [reviewQuestions, setReviewQuestions]     = useState<ReviewTheoryQuestion[]>([]);
+  const [reviewQuestions, setReviewQuestions] = useState<ReviewTheoryQuestion[]>([]);
   const [reviewQuestionsError, setReviewQuestionsError] = useState<string | null>(null);
+
+  // ── Section 4: Practical tasks pre-selection ─────────────────────────────
+  const [practicalBank, setPracticalBank] = useState<PracticalQuestion[]>([]);
+  const [practicalBankLoading, setPracticalBankLoading] = useState(false);
+  const [practicalTasks, setPracticalTasks] = useState<ReviewPracticalTask[]>([]);
+  const [practicalTasksError, setPracticalTasksError] = useState<string | null>(null);
+  const [selectedPracticalIds, setSelectedPracticalIds] = useState<Set<string>>(new Set());
+  const [addingPractical, setAddingPractical] = useState(false);
+  const [practicalAddError, setPracticalAddError] = useState<string | null>(null);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   // Set of question_ids already present in this review (for fast lookup)
@@ -81,6 +95,27 @@ export default function ReviewPage() {
       setReviewQuestionsError('Failed to load review questions.');
     }
   }, []);
+
+  const refreshPracticalTasks = useCallback(async (id: string) => {
+    setPracticalTasksError(null);
+    try {
+      const tasks = await getPracticalTasks(id);
+      setPracticalTasks(tasks);
+    } catch {
+      setPracticalTasksError('Failed to load practical tasks.');
+    }
+  }, []);
+
+  // Load practical bank when review is created
+  useEffect(() => {
+    if (!reviewId) return;
+    setPracticalBankLoading(true);
+    getPracticalQuestions()
+      .then(setPracticalBank)
+      .catch(() => {/* non-critical */ })
+      .finally(() => setPracticalBankLoading(false));
+    refreshPracticalTasks(reviewId);
+  }, [reviewId, refreshPracticalTasks]);
 
   // ── Section 1 handler ─────────────────────────────────────────────────────
   async function handleCreateReview() {
@@ -144,6 +179,44 @@ export default function ReviewPage() {
     }
   }
 
+  // ── Section 4 handlers ────────────────────────────────────────────────────
+  // IDs of tasks already added to this review (matched by source question taskText)
+  const addedPracticalTexts = new Set(practicalTasks.map((t) => t.taskText));
+
+  function togglePractical(id: string) {
+    setSelectedPracticalIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  async function handleAddPracticalTasks() {
+    if (!reviewId || selectedPracticalIds.size === 0) return;
+    setAddingPractical(true);
+    setPracticalAddError(null);
+    try {
+      const selected = practicalBank.filter((q) => selectedPracticalIds.has(q.id));
+      await Promise.all(
+        selected.map((q) => addPracticalTask(reviewId, q.taskText, q.expectedAnswer ?? undefined)),
+      );
+      setSelectedPracticalIds(new Set());
+      await refreshPracticalTasks(reviewId);
+    } catch (err: unknown) {
+      setPracticalAddError(err instanceof Error ? err.message : 'Failed to add practical tasks.');
+    } finally {
+      setAddingPractical(false);
+    }
+  }
+
+  async function handleRemovePracticalTask(taskId: string) {
+    if (!reviewId) return;
+    try {
+      await deletePracticalTask(taskId);
+      await refreshPracticalTasks(reviewId);
+    } catch {/* ignore */ }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ padding: '2rem', maxWidth: '860px', margin: '0 auto' }}>
@@ -154,7 +227,7 @@ export default function ReviewPage() {
         <h2 style={{ marginTop: 0 }}>1. Candidate Selection</h2>
 
         {candidatesLoading && <p>Loading candidates…</p>}
-        {candidatesError   && <p style={errorText}>{candidatesError}</p>}
+        {candidatesError && <p style={errorText}>{candidatesError}</p>}
 
         {!candidatesLoading && !candidatesError && (
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -208,8 +281,8 @@ export default function ReviewPage() {
                 style={{
                   ...btnStyle,
                   background: mode === m ? '#333' : '#fff',
-                  color:      mode === m ? '#fff' : '#333',
-                  border:     '1px solid #333',
+                  color: mode === m ? '#fff' : '#333',
+                  border: '1px solid #333',
                 }}
               >
                 {m === 'manual' ? 'Manual' : 'Random'}
@@ -246,17 +319,17 @@ export default function ReviewPage() {
                       </thead>
                       <tbody>
                         {allQuestions.map((q) => {
-                          const isAdded    = addedQuestionIds.has(q.id);
+                          const isAdded = addedQuestionIds.has(q.id);
                           const isSelected = selectedIds.has(q.id);
                           return (
                             <tr
                               key={q.id}
                               onClick={() => !isAdded && toggleQuestion(q.id)}
                               style={{
-                                cursor:     isAdded ? 'default' : 'pointer',
-                                background: isAdded   ? '#f5f5f5'
-                                          : isSelected ? '#eef5ff'
-                                          : 'transparent',
+                                cursor: isAdded ? 'default' : 'pointer',
+                                background: isAdded ? '#f5f5f5'
+                                  : isSelected ? '#eef5ff'
+                                    : 'transparent',
                                 opacity: isAdded ? 0.6 : 1,
                               }}
                             >
@@ -333,6 +406,75 @@ export default function ReviewPage() {
         </section>
       )}
 
+      {/* ── Section 4: Practical Task Selection ── */}
+      {reviewId && (
+        <section style={cardStyle}>
+          <h2 style={{ marginTop: 0 }}>4. Practical Task Selection</h2>
+
+          {practicalBankLoading && <p>Loading practical bank…</p>}
+          {!practicalBankLoading && practicalBank.length === 0 && (
+            <p>No practical questions in the bank yet.</p>
+          )}
+
+          {!practicalBankLoading && practicalBank.length > 0 && (
+            <>
+              <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px', marginBottom: '0.75rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...thStyle, width: '36px' }} />
+                      <th style={thStyle}>Practical Task</th>
+                      <th style={thStyle}>Expected Answer</th>
+                      <th style={{ ...thStyle, width: '70px' }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {practicalBank.map((q) => {
+                      const isAdded = addedPracticalTexts.has(q.taskText);
+                      const isSelected = selectedPracticalIds.has(q.id);
+                      return (
+                        <tr
+                          key={q.id}
+                          onClick={() => !isAdded && togglePractical(q.id)}
+                          style={{
+                            cursor: isAdded ? 'default' : 'pointer',
+                            background: isAdded ? '#f5f5f5' : isSelected ? '#eef5ff' : 'transparent',
+                            opacity: isAdded ? 0.6 : 1,
+                          }}
+                        >
+                          <td style={{ ...tdStyle, textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={isAdded || isSelected}
+                              disabled={isAdded}
+                              onChange={() => togglePractical(q.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </td>
+                          <td style={tdStyle}>{q.taskText}</td>
+                          <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{q.expectedAnswer ?? '—'}</td>
+                          <td style={{ ...tdStyle, textAlign: 'center' }}>
+                            {isAdded && <span style={badgeStyle}>Added</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {practicalAddError && <p style={errorText}>{practicalAddError}</p>}
+              <button
+                onClick={handleAddPracticalTasks}
+                disabled={selectedPracticalIds.size === 0 || addingPractical}
+                style={btnStyle}
+              >
+                {addingPractical ? 'Adding…' : `Add Selected (${selectedPracticalIds.size})`}
+              </button>
+            </>
+          )}
+        </section>
+      )}
+
       {/* ── Review Progress Summary + Start Interview ── */}
       {reviewId && (
         <section style={{ ...cardStyle, background: '#f9fafb' }}>
@@ -344,8 +486,12 @@ export default function ReviewPage() {
                 <td style={summaryValueCell}>{selectedCandidate?.name ?? '—'}</td>
               </tr>
               <tr>
-                <td style={summaryLabelCell}>Questions Selected</td>
+                <td style={summaryLabelCell}>Theory Questions Selected</td>
                 <td style={summaryValueCell}>{reviewQuestions.length}</td>
+              </tr>
+              <tr>
+                <td style={summaryLabelCell}>Practical Tasks Selected</td>
+                <td style={summaryValueCell}>{practicalTasks.length}</td>
               </tr>
               <tr>
                 <td style={summaryLabelCell}>Status</td>
@@ -356,14 +502,12 @@ export default function ReviewPage() {
             </tbody>
           </table>
 
-          {reviewQuestions.length > 0 && (
-            <button
-              onClick={() => navigate(`/reviews/${reviewId}/interview`)}
-              style={{ ...btnStyle, marginTop: '1.25rem', background: '#1a56db', color: '#fff', border: 'none', fontWeight: 600, padding: '0.65rem 1.5rem' }}
-            >
-              Start Interview →
-            </button>
-          )}
+          <button
+            onClick={() => navigate(`/reviews/${reviewId}/interview`)}
+            style={{ ...btnStyle, marginTop: '1.25rem', background: '#1a56db', color: '#fff', border: 'none', fontWeight: 600, padding: '0.65rem 1.5rem' }}
+          >
+            Start Interview →
+          </button>
         </section>
       )}
 
@@ -408,8 +552,8 @@ export default function ReviewPage() {
 // ── Style helpers ─────────────────────────────────────────────────────────────
 
 function resultStyle(result: 'correct' | 'incorrect' | null): React.CSSProperties {
-  if (result === 'correct')   return { color: '#2a7a2a', fontWeight: 600 };
-  if (result === 'incorrect') return { color: '#c00',    fontWeight: 600 };
+  if (result === 'correct') return { color: '#2a7a2a', fontWeight: 600 };
+  if (result === 'incorrect') return { color: '#c00', fontWeight: 600 };
   return { color: '#888' };
 }
 

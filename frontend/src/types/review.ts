@@ -28,6 +28,16 @@ export interface ReviewPracticalTask {
   updatedAt: string;
 }
 
+export interface PracticalQuestion {
+  id: string;
+  taskText: string;
+  expectedAnswer: string | null;
+  topic: string;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ReviewListItem extends Review {
   candidateName: string;
   questionCount: number;

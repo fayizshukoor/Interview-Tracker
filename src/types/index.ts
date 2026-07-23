@@ -58,3 +58,13 @@ export interface ReviewPracticalTask {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface PracticalQuestion {
+  id: string;
+  taskText: string;
+  expectedAnswer: string | null;
+  topic: string;
+  isDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
