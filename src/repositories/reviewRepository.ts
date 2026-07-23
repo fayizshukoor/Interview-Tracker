@@ -41,6 +41,19 @@ const REVIEW_COLUMNS = `
   feedback, conducted_at, created_at, updated_at
 `;
 
+// Extended columns with candidate name and question count — used by list queries
+const REVIEW_WITH_CANDIDATE_COLUMNS = `
+  r.id, r.candidate_id, r.status, r.theory_score, r.practical_score,
+  r.feedback, r.conducted_at, r.created_at, r.updated_at,
+  c.name AS candidate_name,
+  COUNT(rtq.id)::INT AS question_count
+`;
+
+interface ReviewWithCandidateRow extends ReviewRow {
+  candidate_name: string;
+  question_count: number;
+}
+
 // ---------------------------------------------------------------------------
 // Repository methods
 // ---------------------------------------------------------------------------
@@ -82,15 +95,33 @@ export async function findById(id: string): Promise<Review | null> {
 export async function updateFinalizedReview(
   id: string,
   theoryScore: number,
+  practicalScore: number | null,
 ): Promise<Review | null> {
   const { rows } = await pool.query<ReviewRow>(
     `UPDATE reviews
-     SET status       = 'finalized',
-         theory_score = $1,
-         conducted_at = now()
-     WHERE id = $2
+     SET status          = 'finalized',
+         theory_score    = $1,
+         practical_score = $2,
+         conducted_at    = now()
+     WHERE id = $3
      RETURNING ${REVIEW_COLUMNS}`,
-    [theoryScore, id],
+    [theoryScore, practicalScore, id],
+  );
+
+  return rows[0] ? toReview(rows[0]) : null;
+}
+
+/**
+ * Return the current draft review for a candidate, or null if none exists.
+ */
+export async function findDraftByCandidateId(candidateId: string): Promise<Review | null> {
+  const { rows } = await pool.query<ReviewRow>(
+    `SELECT ${REVIEW_COLUMNS}
+     FROM reviews
+     WHERE candidate_id = $1
+       AND status = 'draft'
+     LIMIT 1`,
+    [candidateId],
   );
 
   return rows[0] ? toReview(rows[0]) : null;
@@ -113,4 +144,45 @@ export async function updateFeedback(
   );
 
   return rows[0] ? toReview(rows[0]) : null;
+}
+
+/**
+ * Return all reviews joined with candidate name, ordered newest first.
+ * Optionally filter by candidateId and/or status.
+ */
+export async function findAll(params: {
+  candidateId?: string;
+  status?: string;
+} = {}): Promise<(Review & { candidateName: string; questionCount: number })[]> {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (params.candidateId) {
+    values.push(params.candidateId);
+    conditions.push(`r.candidate_id = $${values.length}`);
+  }
+
+  if (params.status) {
+    values.push(params.status);
+    conditions.push(`r.status = $${values.length}`);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const { rows } = await pool.query<ReviewWithCandidateRow>(
+    `SELECT ${REVIEW_WITH_CANDIDATE_COLUMNS}
+     FROM reviews r
+     JOIN candidates c ON c.id = r.candidate_id
+     LEFT JOIN review_theory_questions rtq ON rtq.review_id = r.id
+     ${where}
+     GROUP BY r.id, c.name
+     ORDER BY r.created_at DESC`,
+    values,
+  );
+
+  return rows.map((row) => ({
+    ...toReview(row),
+    candidateName:  row.candidate_name,
+    questionCount:  row.question_count,
+  }));
 }

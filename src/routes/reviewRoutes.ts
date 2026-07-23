@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  listReviews,
   createReview,
   getReview,
   finalizeReview,
@@ -8,6 +9,7 @@ import {
 
 const router = Router();
 
+router.get('/', listReviews);
 router.post('/', createReview);
 router.get('/:id', getReview);
 router.patch('/:id/finalize', finalizeReview);

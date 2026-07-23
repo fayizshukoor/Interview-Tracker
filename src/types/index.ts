@@ -48,3 +48,13 @@ export interface ReviewPendingTopic {
   questionText: string;
   createdAt: Date;
 }
+
+export interface ReviewPracticalTask {
+  id: string;
+  reviewId: string;
+  taskText: string;
+  expectedAnswer: string | null;
+  score: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}

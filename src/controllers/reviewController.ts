@@ -1,6 +1,23 @@
 import type { Request, Response } from 'express';
 import * as reviewService from '../services/reviewService.js';
 
+export async function listReviews(req: Request, res: Response): Promise<void> {
+  try {
+    const candidateId = typeof req.query['candidateId'] === 'string'
+      ? req.query['candidateId']
+      : undefined;
+    const status = typeof req.query['status'] === 'string'
+      ? req.query['status']
+      : undefined;
+
+    const reviews = await reviewService.listReviews({ candidateId, status });
+    res.status(200).json(reviews);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unexpected error.';
+    res.status(500).json({ error: message });
+  }
+}
+
 export async function createReview(req: Request, res: Response): Promise<void> {
   try {
     const { candidateId } = req.body as { candidateId?: string };

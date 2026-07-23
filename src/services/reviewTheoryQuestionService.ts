@@ -13,7 +13,7 @@ export async function addQuestionsToReview(
     throw new Error(`Review with id "${reviewId}" not found.`);
   }
 
-  // Validate every question exists before inserting any
+  // Validate every requested question exists in the bank
   const questions = await Promise.all(
     questionIds.map((qId) => questionRepository.findById(qId)),
   );
@@ -23,9 +23,20 @@ export async function addQuestionsToReview(
     throw new Error(`Questions not found: ${missing.join(', ')}.`);
   }
 
-  // Insert snapshots for each question
+  // Check which questions are already part of this review
+  const duplicateFlags = await Promise.all(
+    questionIds.map((qId) => reviewTheoryQuestionRepository.exists(reviewId, qId)),
+  );
+
+  const newQuestions = questions.filter((_, i) => !duplicateFlags[i]);
+
+  if (newQuestions.length === 0) {
+    throw new Error('All selected questions are already part of this review.');
+  }
+
+  // Insert snapshots only for questions not already present
   const added = await Promise.all(
-    questions.map((q) => {
+    newQuestions.map((q) => {
       const question = q!;
       return reviewTheoryQuestionRepository.create(
         reviewId,

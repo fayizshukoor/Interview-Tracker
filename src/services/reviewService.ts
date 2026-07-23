@@ -1,6 +1,7 @@
 import * as reviewRepository from '../repositories/reviewRepository.js';
 import * as candidateRepository from '../repositories/candidateRepository.js';
 import * as reviewTheoryQuestionRepository from '../repositories/reviewTheoryQuestionRepository.js';
+import * as reviewPracticalTaskRepository from '../repositories/reviewPracticalTaskRepository.js';
 import type { Review } from '../types/index.js';
 
 export async function createReview(candidateId: string): Promise<Review> {
@@ -8,6 +9,11 @@ export async function createReview(candidateId: string): Promise<Review> {
 
   if (!candidate) {
     throw new Error(`Candidate with id "${candidateId}" not found.`);
+  }
+
+  const existingDraft = await reviewRepository.findDraftByCandidateId(candidateId);
+  if (existingDraft) {
+    return existingDraft;
   }
 
   return reviewRepository.create(candidateId);
@@ -34,10 +40,18 @@ export async function finalizeReview(reviewId: string): Promise<Review> {
     throw new Error('Review contains no questions.');
   }
 
+  // Compute theory score
   const correctCount = questions.filter((q) => q.result === 'correct').length;
   const theoryScore  = parseFloat(((correctCount / questions.length) * 100).toFixed(2));
 
-  const finalized = await reviewRepository.updateFinalizedReview(reviewId, theoryScore);
+  // Compute practical score — average of all scored tasks (ignore unscored)
+  const tasks = await reviewPracticalTaskRepository.findByReviewId(reviewId);
+  const scoredTasks = tasks.filter((t) => t.score !== null);
+  const practicalScore = scoredTasks.length > 0
+    ? parseFloat((scoredTasks.reduce((sum, t) => sum + t.score!, 0) / scoredTasks.length).toFixed(2))
+    : null;
+
+  const finalized = await reviewRepository.updateFinalizedReview(reviewId, theoryScore, practicalScore);
   if (!finalized) {
     throw new Error('Review not found.');
   }
@@ -63,4 +77,11 @@ export async function updateReviewFeedback(reviewId: string, feedback: string): 
   }
 
   return updated;
+}
+
+export async function listReviews(params: {
+  candidateId?: string;
+  status?: string;
+} = {}): Promise<(Review & { candidateName: string; questionCount: number })[]> {
+  return reviewRepository.findAll(params);
 }

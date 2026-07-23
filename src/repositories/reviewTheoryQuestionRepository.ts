@@ -101,6 +101,23 @@ export async function updateResult(
 }
 
 /**
+ * Return true if the review already contains a snapshot for the given
+ * source question id.
+ */
+export async function exists(reviewId: string, questionId: string): Promise<boolean> {
+  const { rows } = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM review_theory_questions
+       WHERE review_id  = $1
+         AND question_id = $2
+     ) AS exists`,
+    [reviewId, questionId],
+  );
+
+  return rows[0]?.exists ?? false;
+}
+
+/**
  * Delete a single theory question row by its id.
  * Returns true if a row was deleted, false if the id was not found.
  */
