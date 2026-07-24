@@ -7,31 +7,32 @@ import {
 } from '../api/practicalQuestionApi';
 import type { Question } from '../types/question';
 import type { PracticalQuestion } from '../types/review';
+import { formatExpectedAnswer, normalizeExpectedAnswer } from '../utils/formatExpectedAnswer';
 
 type Tab = 'theory' | 'practical';
 
-const EMPTY_THEORY  = { questionText: '', expectedAnswer: '', topic: '' };
+const EMPTY_THEORY = { questionText: '', expectedAnswer: '', topic: '' };
 const EMPTY_PRACTICAL = { taskText: '', expectedAnswer: '', topic: '' };
 
 export default function QuestionsPage() {
   const [tab, setTab] = useState<Tab>('theory');
 
   // ── Theory state ──────────────────────────────────────────────────────────
-  const [questions, setQuestions]       = useState<Question[]>([]);
-  const [tLoading, setTLoading]         = useState(true);
-  const [tError, setTError]             = useState<string | null>(null);
-  const [topicFilter, setTopicFilter]   = useState('');
-  const [tForm, setTForm]               = useState(EMPTY_THEORY);
-  const [tSubmitting, setTSubmitting]   = useState(false);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [tLoading, setTLoading] = useState(true);
+  const [tError, setTError] = useState<string | null>(null);
+  const [topicFilter, setTopicFilter] = useState('');
+  const [tForm, setTForm] = useState(EMPTY_THEORY);
+  const [tSubmitting, setTSubmitting] = useState(false);
   const [tSubmitError, setTSubmitError] = useState<string | null>(null);
 
   // ── Practical state ───────────────────────────────────────────────────────
-  const [pQuestions, setPQuestions]     = useState<PracticalQuestion[]>([]);
-  const [pLoading, setPLoading]         = useState(false);
-  const [pError, setPError]             = useState<string | null>(null);
+  const [pQuestions, setPQuestions] = useState<PracticalQuestion[]>([]);
+  const [pLoading, setPLoading] = useState(false);
+  const [pError, setPError] = useState<string | null>(null);
   const [pTopicFilter, setPTopicFilter] = useState('');
-  const [pForm, setPForm]               = useState(EMPTY_PRACTICAL);
-  const [pSubmitting, setPSubmitting]   = useState(false);
+  const [pForm, setPForm] = useState(EMPTY_PRACTICAL);
+  const [pSubmitting, setPSubmitting] = useState(false);
   const [pSubmitError, setPSubmitError] = useState<string | null>(null);
 
   // ── Theory fetch ──────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ export default function QuestionsPage() {
       const data = topic.trim() ? await getQuestionsByTopic(topic.trim()) : await getQuestions();
       setQuestions(data);
     } catch { setTError('Failed to load questions.'); }
-    finally  { setTLoading(false); }
+    finally { setTLoading(false); }
   }, []);
 
   useEffect(() => { fetchTheory(topicFilter); }, [topicFilter, fetchTheory]);
@@ -53,7 +54,7 @@ export default function QuestionsPage() {
       const data = await getPracticalQuestions(topic.trim() ? { topic: topic.trim() } : undefined);
       setPQuestions(data);
     } catch { setPError('Failed to load practical questions.'); }
-    finally  { setPLoading(false); }
+    finally { setPLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -67,7 +68,11 @@ export default function QuestionsPage() {
     if (!tFormValid) return;
     setTSubmitting(true); setTSubmitError(null);
     try {
-      await createQuestion({ questionText: tForm.questionText.trim(), expectedAnswer: tForm.expectedAnswer.trim(), topic: tForm.topic.trim() });
+      await createQuestion({
+        questionText: tForm.questionText.trim(),
+        expectedAnswer: normalizeExpectedAnswer(tForm.expectedAnswer.trim()),
+        topic: tForm.topic.trim(),
+      });
       setTForm(EMPTY_THEORY);
       await fetchTheory(topicFilter);
     } catch (err: unknown) {
@@ -89,9 +94,9 @@ export default function QuestionsPage() {
     setPSubmitting(true); setPSubmitError(null);
     try {
       await createPracticalQuestion({
-        taskText:       pForm.taskText.trim(),
+        taskText: pForm.taskText.trim(),
         expectedAnswer: pForm.expectedAnswer.trim() || undefined,
-        topic:          pForm.topic.trim(),
+        topic: pForm.topic.trim(),
       });
       setPForm(EMPTY_PRACTICAL);
       await fetchPractical(pTopicFilter);
@@ -167,7 +172,7 @@ export default function QuestionsPage() {
                     <tr key={q.id}>
                       <td>{q.questionText}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{q.topic}</td>
-                      <td style={{ color: '#555', fontSize: '0.875rem' }}>{q.expectedAnswer}</td>
+                      <td style={{ color: '#555', fontSize: '0.875rem' }}>{formatExpectedAnswer(q.expectedAnswer)}</td>
                       <td><button className="btn btn-danger btn-sm" onClick={() => handleDeleteTheory(q.id, q.questionText)}>Delete</button></td>
                     </tr>
                   ))}
@@ -220,7 +225,7 @@ export default function QuestionsPage() {
                     <tr key={q.id}>
                       <td>{q.taskText}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{q.topic}</td>
-                      <td style={{ color: '#555', fontSize: '0.875rem' }}>{q.expectedAnswer ?? <em className="text-muted">—</em>}</td>
+                      <td style={{ color: '#555', fontSize: '0.875rem' }}>{q.expectedAnswer ? formatExpectedAnswer(q.expectedAnswer) : <em className="text-muted">—</em>}</td>
                       <td><button className="btn btn-danger btn-sm" onClick={() => handleDeletePractical(q.id, q.taskText)}>Delete</button></td>
                     </tr>
                   ))}

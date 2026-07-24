@@ -8,7 +8,6 @@ import {
   getReviewQuestions,
   addPracticalTask,
   getPracticalTasks,
-  deletePracticalTask,
 } from '../api/reviewApi';
 import { getQuestions } from '../api/questionApi';
 import { getPracticalQuestions } from '../api/practicalQuestionApi';
@@ -16,6 +15,7 @@ import type { Candidate } from '../types/candidate';
 import type { ReviewTheoryQuestion, ReviewPracticalTask } from '../types/review';
 import type { Question } from '../types/question';
 import type { PracticalQuestion } from '../types/review';
+import { formatExpectedAnswer } from '../utils/formatExpectedAnswer';
 
 type QuestionMode = 'manual' | 'random';
 
@@ -51,7 +51,6 @@ export default function ReviewPage() {
   const [practicalBank, setPracticalBank] = useState<PracticalQuestion[]>([]);
   const [practicalBankLoading, setPracticalBankLoading] = useState(false);
   const [practicalTasks, setPracticalTasks] = useState<ReviewPracticalTask[]>([]);
-  const [practicalTasksError, setPracticalTasksError] = useState<string | null>(null);
   const [selectedPracticalIds, setSelectedPracticalIds] = useState<Set<string>>(new Set());
   const [addingPractical, setAddingPractical] = useState(false);
   const [practicalAddError, setPracticalAddError] = useState<string | null>(null);
@@ -97,12 +96,11 @@ export default function ReviewPage() {
   }, []);
 
   const refreshPracticalTasks = useCallback(async (id: string) => {
-    setPracticalTasksError(null);
     try {
       const tasks = await getPracticalTasks(id);
       setPracticalTasks(tasks);
     } catch {
-      setPracticalTasksError('Failed to load practical tasks.');
+      // ignore non-critical load errors for practical tasks
     }
   }, []);
 
@@ -207,14 +205,6 @@ export default function ReviewPage() {
     } finally {
       setAddingPractical(false);
     }
-  }
-
-  async function handleRemovePracticalTask(taskId: string) {
-    if (!reviewId) return;
-    try {
-      await deletePracticalTask(taskId);
-      await refreshPracticalTasks(reviewId);
-    } catch {/* ignore */ }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -452,7 +442,7 @@ export default function ReviewPage() {
                             />
                           </td>
                           <td style={tdStyle}>{q.taskText}</td>
-                          <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{q.expectedAnswer ?? '—'}</td>
+                          <td style={{ ...tdStyle, whiteSpace: 'pre-wrap' }}>{formatExpectedAnswer(q.expectedAnswer ?? undefined)}</td>
                           <td style={{ ...tdStyle, textAlign: 'center' }}>
                             {isAdded && <span style={badgeStyle}>Added</span>}
                           </td>

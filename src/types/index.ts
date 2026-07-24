@@ -5,6 +5,13 @@ export interface Candidate {
   updatedAt: Date;
 }
 
+export interface User {
+  id: string;
+  email: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Question {
   id: string;
   questionText: string;

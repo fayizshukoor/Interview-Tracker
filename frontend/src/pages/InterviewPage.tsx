@@ -15,6 +15,7 @@ import {
 import { getQuestions } from '../api/questionApi';
 import type { ReviewTheoryQuestion, ReviewPracticalTask } from '../types/review';
 import type { Question } from '../types/question';
+import { formatExpectedAnswer } from '../utils/formatExpectedAnswer';
 
 type Phase = 'theory' | 'practical';
 
@@ -449,7 +450,7 @@ export default function InterviewPage() {
             ) : (
               <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0.75rem', marginBottom: '0.5rem' }}>
                 <p style={{ margin: '0 0 0.2rem', fontSize: '0.72rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase' }}>Expected Answer</p>
-                <p style={{ margin: 0 }}>{current.expectedAnswer}</p>
+                <div style={{ margin: 0 }}>{formatExpectedAnswer(current.expectedAnswer)}</div>
               </div>
             )}
 
@@ -554,9 +555,9 @@ export default function InterviewPage() {
             {task.expectedAnswer && (
               <details style={{ marginBottom: '0.75rem' }}>
                 <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: '#555', fontWeight: 600 }}>Show Expected Answer</summary>
-                <p style={{ margin: '0.4rem 0 0', background: '#f9fafb', padding: '0.5rem', borderRadius: '4px', fontSize: '0.9rem' }}>
-                  {task.expectedAnswer}
-                </p>
+                <div style={{ margin: '0.4rem 0 0', background: '#f9fafb', padding: '0.5rem', borderRadius: '4px', fontSize: '0.9rem' }}>
+                  {formatExpectedAnswer(task.expectedAnswer)}
+                </div>
               </details>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>

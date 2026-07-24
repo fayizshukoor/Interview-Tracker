@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
 const features = [
   {
@@ -45,6 +46,7 @@ const steps = [
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <div className="home">
@@ -56,12 +58,27 @@ export default function HomePage() {
           Conduct structured candidate interviews, track results, and build a
           reusable question bank — all in one place.
         </p>
-        <button
-          className="btn btn-primary btn-lg"
-          onClick={() => navigate('/reviews')}
-        >
-          Start a Review →
-        </button>
+        {!user && (
+          <div className="home-banner alert alert-info">
+            You must be signed in to access candidates, questions, reviews, and history.
+          </div>
+        )}
+        <div className="hero-actions">
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={() => navigate(user ? '/reviews' : '/login')}
+          >
+            {user ? 'Start a Review →' : 'Login to Get Started'}
+          </button>
+          {!user && (
+            <button
+              className="btn btn-secondary btn-lg"
+              onClick={() => navigate('/register')}
+            >
+              Create Account
+            </button>
+          )}
+        </div>
       </section>
 
       {/* Feature cards */}
@@ -75,10 +92,21 @@ export default function HomePage() {
               <p className="feature-card-desc">{f.description}</p>
               <button
                 className="btn btn-outline"
-                style={{ '--btn-colour': f.colour } as React.CSSProperties}
-                onClick={() => navigate(f.path)}
+                style={{
+                  '--btn-colour': f.colour,
+                  opacity: user ? 1 : 0.55,
+                  cursor: user ? 'pointer' : 'not-allowed',
+                } as React.CSSProperties}
+                disabled={!user}
+                onClick={() => {
+                  if (user) {
+                    navigate(f.path);
+                  } else {
+                    navigate('/login');
+                  }
+                }}
               >
-                {f.action}
+                {user ? f.action : 'Login to access'}
               </button>
             </div>
           ))}
