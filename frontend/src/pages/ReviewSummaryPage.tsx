@@ -254,8 +254,15 @@ export default function ReviewSummaryPage() {
               {practicalTasks.map((t, i) => {
                 const start = t.startTime ? new Date(t.startTime).getTime() : null;
                 const end = t.endTime ? new Date(t.endTime).getTime() : null;
-                const dur = start && end ? Math.max(0, Math.floor((end - start) / 1000)) : (start && !end ? Math.max(0, Math.floor((Date.now() - start) / 1000)) : null);
-                function fmt(s?: string | null) { return s ? new Date(s).toLocaleString() : '—'; }
+                const dur = start && end ? Math.max(0, Math.floor((end - start) / 1000)) : null;
+                function fmt(s?: string | null) {
+                  return s ? new Date(s).toLocaleString(undefined, {
+                    hour12: true,
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  }) : '—';
+                }
                 return (
                   <tr key={t.id}>
                     <td style={{ ...tdStyle, color: '#888', width: '36px' }}>{i + 1}</td>
@@ -310,8 +317,8 @@ export default function ReviewSummaryPage() {
 
       {/* ── Actions ── */}
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.5rem' }}>
-        <button onClick={() => navigate('/reviews')} style={btnStyle}>
-          ← Back to Reviews
+        <button onClick={() => navigate('/')} style={btnStyle}>
+          ← Back to Home
         </button>
         <button
           onClick={() => navigate('/reviews')}

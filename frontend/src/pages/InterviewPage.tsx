@@ -223,6 +223,15 @@ export default function InterviewPage() {
     return `${m}:${s}`;
   }
 
+  function formatTimestampTo12Hour(timestamp?: string | null): string {
+    return timestamp ? new Date(timestamp).toLocaleString(undefined, {
+      hour12: true,
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+    }) : '—';
+  }
+
   // ── Theory handlers ───────────────────────────────────────────────────────
   async function handleMark(result: 'correct' | 'incorrect') {
     if (!questions[currentIndex] || !reviewId) return;
@@ -579,8 +588,8 @@ export default function InterviewPage() {
             </div>
             {scoreErrors[task.id] && <p style={S.error}>{scoreErrors[task.id]}</p>}
             <div style={{ marginTop: '0.6rem', fontSize: '0.88rem', color: '#555' }}>
-              <div>Start: {task.startTime ? new Date(task.startTime).toLocaleString() : '—'}</div>
-              <div>End: {task.endTime ? new Date(task.endTime).toLocaleString() : (isRunning ? 'Running…' : '—')}</div>
+              <div>Start: {formatTimestampTo12Hour(task.startTime)}</div>
+              <div>End: {task.endTime ? formatTimestampTo12Hour(task.endTime) : (isRunning ? 'Running…' : '—')}</div>
             </div>
           </section>
         );
