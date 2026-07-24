@@ -15,7 +15,7 @@ import {
 import { getQuestions } from '../api/questionApi';
 import type { ReviewTheoryQuestion, ReviewPracticalTask } from '../types/review';
 import type { Question } from '../types/question';
-import { formatExpectedAnswer } from '../utils/formatExpectedAnswer';
+import { formatExpectedAnswer, formatTextDisplay } from '../utils/formatExpectedAnswer';
 
 type Phase = 'theory' | 'practical';
 
@@ -441,7 +441,7 @@ export default function InterviewPage() {
             <p style={{ fontSize: '0.82rem', color: '#888', margin: '0 0 0.4rem', fontWeight: 600, textTransform: 'uppercase' }}>
               {current.topic}
             </p>
-            <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0 0 1.25rem' }}>{current.questionText}</p>
+            <div style={{ margin: '0 0 1.25rem' }}>{formatTextDisplay(current.questionText)}</div>
 
             {!answerVisible ? (
               <button onClick={() => setAnswerVisible(true)} style={{ ...S.btn, background: '#f3f4f6' }}>

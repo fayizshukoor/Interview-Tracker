@@ -15,7 +15,7 @@ import type { Candidate } from '../types/candidate';
 import type { ReviewTheoryQuestion, ReviewPracticalTask } from '../types/review';
 import type { Question } from '../types/question';
 import type { PracticalQuestion } from '../types/review';
-import { formatExpectedAnswer } from '../utils/formatExpectedAnswer';
+import { formatExpectedAnswer, formatTextDisplay } from '../utils/formatExpectedAnswer';
 
 type QuestionMode = 'manual' | 'random';
 
@@ -332,7 +332,7 @@ export default function ReviewPage() {
                                   onClick={(e) => e.stopPropagation()}
                                 />
                               </td>
-                              <td style={tdStyle}>{q.questionText}</td>
+                              <td style={tdStyle}>{formatTextDisplay(q.questionText)}</td>
                               <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{q.topic}</td>
                               <td style={{ ...tdStyle, textAlign: 'center' }}>
                                 {isAdded && (

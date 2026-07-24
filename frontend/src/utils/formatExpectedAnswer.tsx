@@ -23,6 +23,27 @@ function isCodeAnswer(answer: string): boolean {
   return lines.some((line) => /^\s{2,}|^\t/.test(line));
 }
 
+export function formatTextDisplay(text: string | null | undefined, fallback: ReactNode = '—'): ReactNode {
+  if (!text?.trim()) {
+    return fallback;
+  }
+
+  const normalized = text.trim();
+  if (isCodeAnswer(normalized)) {
+    return (
+      <pre style={{ margin: '0.3rem 0', padding: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', overflowX: 'auto', fontSize: '0.9rem', lineHeight: 1.5, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
+        {normalized}
+      </pre>
+    );
+  }
+
+  return normalized.split(/\r?\n/).map((line, index) => (
+    <p key={index} style={{ margin: '0.3rem 0' }}>
+      {line}
+    </p>
+  ));
+}
+
 export function formatExpectedAnswer(answer: string | null | undefined, fallback: ReactNode = '—'): ReactNode {
   if (!answer?.trim()) {
     return fallback;

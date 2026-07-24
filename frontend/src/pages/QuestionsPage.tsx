@@ -7,7 +7,7 @@ import {
 } from '../api/practicalQuestionApi';
 import type { Question } from '../types/question';
 import type { PracticalQuestion } from '../types/review';
-import { formatExpectedAnswer, normalizeExpectedAnswer } from '../utils/formatExpectedAnswer';
+import { formatExpectedAnswer, formatTextDisplay, normalizeExpectedAnswer } from '../utils/formatExpectedAnswer';
 
 type Tab = 'theory' | 'practical';
 
@@ -137,8 +137,8 @@ export default function QuestionsPage() {
           <div className="card" style={{ marginBottom: '1.25rem' }}>
             <h2 style={{ marginTop: 0, fontSize: '1rem', fontWeight: 700 }}>Add Theory Question</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              <input className="input" placeholder="Question text" value={tForm.questionText}
-                onChange={(e) => setTForm((p) => ({ ...p, questionText: e.target.value }))} disabled={tSubmitting} />
+              <textarea className="input" placeholder="Question text or code snippet" value={tForm.questionText}
+                onChange={(e) => setTForm((p) => ({ ...p, questionText: e.target.value }))} disabled={tSubmitting} rows={4} style={{ resize: 'vertical' }} />
               <textarea className="input" placeholder="Expected answer" value={tForm.expectedAnswer}
                 onChange={(e) => setTForm((p) => ({ ...p, expectedAnswer: e.target.value }))}
                 disabled={tSubmitting} rows={3} style={{ resize: 'vertical' }} />
@@ -170,7 +170,7 @@ export default function QuestionsPage() {
                 <tbody>
                   {questions.map((q) => (
                     <tr key={q.id}>
-                      <td>{q.questionText}</td>
+                      <td>{formatTextDisplay(q.questionText)}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{q.topic}</td>
                       <td style={{ color: '#555', fontSize: '0.875rem' }}>{formatExpectedAnswer(q.expectedAnswer)}</td>
                       <td><button className="btn btn-danger btn-sm" onClick={() => handleDeleteTheory(q.id, q.questionText)}>Delete</button></td>
