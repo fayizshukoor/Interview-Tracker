@@ -508,6 +508,7 @@ export default function InterviewPage() {
 
             {/* Current question card */}
             {current && (
+          <div>
           <section style={S.card}>
             <p style={{ fontSize: '0.82rem', color: '#888', margin: '0 0 0.4rem', fontWeight: 600, textTransform: 'uppercase' }}>
               {current.topic}
@@ -545,40 +546,37 @@ export default function InterviewPage() {
               {markError && <p style={S.error}>{markError}</p>}
             </div>
           </section>
-            )}
-          </div>
-        )}
-
-        {/* Navigation */}
-        {total > 0 && isMarked && (
-          <div style={{ marginTop: '1rem' }}>
-            {isLast ? (
-              <button onClick={() => setPhase('practical')}
-                style={{ ...S.btn, background: '#7e22ce', color: '#fff', border: 'none', fontWeight: 600, padding: '0.65rem 1.5rem' }}>
-                Continue to Practical →
-              </button>
-            ) : (
-              <button onClick={handleNext}
-                style={{ ...S.btn, background: '#333', color: '#fff', border: 'none', padding: '0.6rem 1.5rem' }}>
-                Next Question →
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Skip to practical if no questions or all done */}
-        {total > 0 && !isLast && (
-          <button
-            onClick={() => setPhase('practical')}
-            style={{ ...S.btn, marginTop: '1rem', color: '#6b7280', display: 'block' }}
-          >
-            Skip to Practical →
+          {isMarked && (
+            <div style={{ marginTop: '0.25rem' }}>
+              {isLast ? (
+                <button onClick={() => setPhase('practical')}
+                  style={{ ...S.btn, background: '#7e22ce', color: '#fff', border: 'none', fontWeight: 600, padding: '0.65rem 1.5rem' }}>
+                  Continue to Practical →
+                </button>
+              ) : (
+                <button onClick={handleNext}
+                  style={{ ...S.btn, background: '#333', color: '#fff', border: 'none', padding: '0.6rem 1.5rem' }}>
+                  Next Question →
+                </button>
+              )}
+            </div>
+          )}
+          {!isLast && (
+            <button
+              onClick={() => setPhase('practical')}
+              style={{ ...S.btn, marginTop: '0.75rem', color: '#6b7280', display: 'block' }}
+            >
+              Skip to Practical →
+            </button>
+          )}
+          <button onClick={() => navigate('/reviews')} style={{ ...S.btn, marginTop: '1rem', color: '#6b7280' }}>
+            ← Back to Review
           </button>
+          </div>
+            )}
+          </div>
         )}
-
-        <button onClick={() => navigate('/reviews')} style={{ ...S.btn, marginTop: '1.5rem', color: '#6b7280' }}>
-          ← Back to Review
-        </button>
+        {total === 0 && <button onClick={() => navigate('/reviews')} style={{ ...S.btn, marginTop: '1.5rem', color: '#6b7280' }}>← Back to Review</button>}
       </Wrap>
     );
   }
