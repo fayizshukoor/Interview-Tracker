@@ -47,6 +47,21 @@ export async function getQuestionsForReview(req: Request, res: Response): Promis
   }
 }
 
+export async function reorderReviewQuestions(req: Request, res: Response): Promise<void> {
+  try {
+    const reviewId = req.params['reviewId'] as string;
+    const { orderedIds } = req.body as { orderedIds?: unknown };
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0 || orderedIds.some((id) => typeof id !== 'string')) {
+      res.status(400).json({ error: 'orderedIds must be a non-empty array of strings.' });
+      return;
+    }
+    res.status(200).json(await reviewTheoryQuestionService.reorderQuestions(reviewId, orderedIds as string[]));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unexpected error.';
+    res.status(statusFromError(message)).json({ error: message });
+  }
+}
+
 export async function markQuestionResult(req: Request, res: Response): Promise<void> {
   try {
     const id = req.params['id'] as string;

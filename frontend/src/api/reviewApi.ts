@@ -43,6 +43,11 @@ export async function getReviewQuestions(
   return response.data;
 }
 
+export async function reorderReviewQuestions(reviewId: string, orderedIds: string[]): Promise<ReviewTheoryQuestion[]> {
+  const response = await client.patch<ReviewTheoryQuestion[]>(`/reviews/${reviewId}/questions/order`, { orderedIds });
+  return response.data;
+}
+
 export async function markQuestionResult(
   reviewQuestionId: string,
   result: 'correct' | 'incorrect',

@@ -34,19 +34,20 @@ export async function addQuestionsToReview(
     throw new Error('All selected questions are already part of this review.');
   }
 
-  // Insert snapshots only for questions not already present
-  const added = await Promise.all(
-    newQuestions.map((q) => {
+  // Insert snapshots in the requested order.
+  const existing = await reviewTheoryQuestionRepository.findByReviewId(reviewId);
+  const added: ReviewTheoryQuestion[] = [];
+  for (const [index, q] of newQuestions.entries()) {
       const question = q!;
-      return reviewTheoryQuestionRepository.create(
+      added.push(await reviewTheoryQuestionRepository.create(
         reviewId,
         question.id,
         question.questionText,
         question.expectedAnswer,
         question.topic,
-      );
-    }),
-  );
+        existing.length + index,
+      ));
+  }
 
   return added;
 }
@@ -116,17 +117,28 @@ export async function addRandomQuestionsToReview(
   }
   const selected = shuffled.slice(0, count);
 
-  const added = await Promise.all(
-    selected.map((q) =>
-      reviewTheoryQuestionRepository.create(
+  const existing = await reviewTheoryQuestionRepository.findByReviewId(reviewId);
+  const added: ReviewTheoryQuestion[] = [];
+  for (const [index, q] of selected.entries()) {
+    added.push(await reviewTheoryQuestionRepository.create(
         reviewId,
         q.id,
         q.questionText,
         q.expectedAnswer,
         q.topic,
-      ),
-    ),
-  );
+        existing.length + index,
+      ));
+  }
 
   return added;
+}
+
+export async function reorderQuestions(reviewId: string, orderedIds: string[]): Promise<ReviewTheoryQuestion[]> {
+  const current = await getQuestionsForReview(reviewId);
+  const currentIds = new Set(current.map((question) => question.id));
+  if (orderedIds.length !== current.length || new Set(orderedIds).size !== orderedIds.length || orderedIds.some((id) => !currentIds.has(id))) {
+    throw new Error('orderedIds must contain every review question exactly once.');
+  }
+  await reviewTheoryQuestionRepository.reorder(reviewId, orderedIds);
+  return getQuestionsForReview(reviewId);
 }

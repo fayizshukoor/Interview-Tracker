@@ -14,6 +14,7 @@ export interface ReviewPendingTopic {
   id: string;
   reviewId: string;
   topic: string;
+  orderIndex: number;
   questionText: string;
   createdAt: string;
 }
@@ -52,6 +53,7 @@ export interface ReviewTheoryQuestion {
   questionText: string;
   expectedAnswer: string;
   topic: string;
+  orderIndex: number;
   result: 'correct' | 'incorrect' | null;
   createdAt: string;
   updatedAt: string;

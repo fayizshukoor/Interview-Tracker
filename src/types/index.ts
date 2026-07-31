@@ -43,6 +43,7 @@ export interface ReviewTheoryQuestion {
   questionText: string;
   expectedAnswer: string;
   topic: string;
+  orderIndex: number;
   result: QuestionResult | null;
   createdAt: Date;
   updatedAt: Date;

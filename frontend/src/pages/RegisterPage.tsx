@@ -10,6 +10,7 @@ export default function RegisterPage() {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [otp, setOtp] = useState('');
     const [otpSent, setOtpSent] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -84,14 +85,20 @@ export default function RegisterPage() {
 
                 <label className="form-group">
                     <span className="form-label">Password</span>
-                    <input
-                        className="input"
-                        type="password"
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        required
-                        disabled={submitting}
-                    />
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            className="input"
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChange={(event) => setPassword(event.target.value)}
+                            required
+                            disabled={submitting}
+                            style={{ paddingRight: '3rem' }}
+                        />
+                        <button type="button" onClick={() => setShowPassword((visible) => !visible)} disabled={submitting} aria-label={showPassword ? 'Hide password' : 'Show password'} style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', border: 0, background: 'transparent', cursor: 'pointer', fontSize: '1.1rem' }}>
+                            {showPassword ? '◉' : '◌'}
+                        </button>
+                    </div>
                 </label>
 
                 {error && <p style={{ color: 'red' }}>{error}</p>}

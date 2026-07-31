@@ -11,6 +11,7 @@ import {
   startPracticalTaskTimer,
   stopPracticalTaskTimer,
   finalizeReview,
+  reorderReviewQuestions,
 } from '../api/reviewApi';
 import { getQuestions } from '../api/questionApi';
 import type { ReviewTheoryQuestion, ReviewPracticalTask } from '../types/review';
@@ -31,6 +32,10 @@ export default function InterviewPage() {
   const [answerVisible, setAnswerVisible] = useState(false);
   const [marking, setMarking] = useState(false);
   const [markError, setMarkError] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+  const [orderingMode, setOrderingMode] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // ── Phase ─────────────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>('theory');
@@ -250,6 +255,31 @@ export default function InterviewPage() {
     if (currentIndex < total - 1) setCurrentIndex((i) => i + 1);
   }
 
+  async function dropQuestion(targetIndex: number) {
+    if (draggedIndex === null || draggedIndex === targetIndex) return;
+    if (!reviewId || reordering) return;
+    const currentId = questions[currentIndex]?.id;
+    const reordered = [...questions];
+    const [dragged] = reordered.splice(draggedIndex, 1);
+    if (!dragged) return;
+    reordered.splice(targetIndex, 0, dragged);
+    setQuestions(reordered);
+    setCurrentIndex(Math.max(0, reordered.findIndex((question) => question.id === currentId)));
+    setReordering(true);
+    setReorderError(null);
+    try {
+      const saved = await reorderReviewQuestions(reviewId, reordered.map((question) => question.id));
+      setQuestions(saved);
+    } catch (err: unknown) {
+      setQuestions(questions);
+      setCurrentIndex(Math.max(0, questions.findIndex((question) => question.id === currentId)));
+      setReorderError(err instanceof Error ? err.message : 'Unable to save question order.');
+    } finally {
+      setReordering(false);
+    }
+    setDraggedIndex(null);
+  }
+
   // ── Practical handlers ────────────────────────────────────────────────────
   async function handleAddTask() {
     if (!reviewId || !newTaskText.trim()) return;
@@ -435,8 +465,49 @@ export default function InterviewPage() {
           </section>
         )}
 
-        {/* Current question card */}
-        {total > 0 && current && (
+        {reorderError && <p style={S.error}>{reorderError}</p>}
+
+        {/* Question navigator and current question */}
+        {total > 0 && (
+          <div style={S.interviewGrid}>
+            <aside style={S.questionNav} aria-label="Interview questions">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem' }}>
+                <strong>Questions</strong>
+                {reordering && <span style={{ fontSize: '0.72rem', color: '#6b7280' }}>Saving…</span>}
+              </div>
+              <button onClick={() => setOrderingMode((enabled) => !enabled)} disabled={reordering} style={{ ...S.orderModeButton, ...(orderingMode ? S.orderModeButtonActive : {}) }}>
+                {orderingMode ? 'Done ordering' : 'Change order'}
+              </button>
+              <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: '0.5rem 0 0.6rem' }}>
+                {orderingMode ? 'Drag questions into the order you want.' : 'Select a question to view it.'}
+              </p>
+              {questions.map((question, index) => (
+                <div
+                  key={question.id}
+                  draggable={orderingMode && !reordering}
+                  onDragStart={() => setDraggedIndex(index)}
+                  onDragOver={(event) => { if (orderingMode) event.preventDefault(); }}
+                  onDrop={(event) => { event.preventDefault(); void dropQuestion(index); }}
+                  onDragEnd={() => setDraggedIndex(null)}
+                  style={{ ...S.questionNavItem, ...(index === currentIndex ? S.questionNavItemActive : {}), ...(draggedIndex === index ? S.questionNavItemDragging : {}) }}
+                >
+                  <button
+                    onClick={() => setCurrentIndex(index)}
+                    disabled={orderingMode}
+                    style={S.questionNavSelect}
+                    title={question.questionText}
+                  >
+                    <span style={S.questionNumber}>{index + 1}</span>
+                    <span style={S.questionNavText}>{question.questionText}</span>
+                    {question.result && <span aria-label={question.result}>{question.result === 'correct' ? '✓' : '✗'}</span>}
+                  </button>
+                  {orderingMode && <div style={S.dragHandle} title="Drag to reorder">⋮⋮</div>}
+                </div>
+              ))}
+            </aside>
+
+            {/* Current question card */}
+            {current && (
           <section style={S.card}>
             <p style={{ fontSize: '0.82rem', color: '#888', margin: '0 0 0.4rem', fontWeight: 600, textTransform: 'uppercase' }}>
               {current.topic}
@@ -474,6 +545,8 @@ export default function InterviewPage() {
               {markError && <p style={S.error}>{markError}</p>}
             </div>
           </section>
+            )}
+          </div>
         )}
 
         {/* Navigation */}
@@ -613,11 +686,22 @@ export default function InterviewPage() {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 function Wrap({ children }: { children: React.ReactNode }) {
-  return <div style={{ padding: '2rem', maxWidth: '740px', margin: '0 auto' }}>{children}</div>;
+  return <div style={{ padding: '2rem', maxWidth: '1100px', margin: '0 auto' }}>{children}</div>;
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const S = {
+  interviewGrid: { display: 'grid', gridTemplateColumns: '260px minmax(0, 1fr)', gap: '1rem', alignItems: 'start' } as React.CSSProperties,
+  questionNav: { border: '1px solid #e5e7eb', borderRadius: '8px', padding: '0.75rem', background: '#fff', position: 'sticky', top: '1rem', maxHeight: '70vh', overflowY: 'auto' } as React.CSSProperties,
+  questionNavItem: { display: 'flex', alignItems: 'stretch', gap: '0.25rem', border: '1px solid transparent', borderRadius: '6px', marginBottom: '0.35rem' } as React.CSSProperties,
+  questionNavItemActive: { background: '#eff6ff', borderColor: '#93c5fd' } as React.CSSProperties,
+  questionNavItemDragging: { opacity: 0.45, borderColor: '#2563eb', borderStyle: 'dashed' } as React.CSSProperties,
+  questionNavSelect: { display: 'flex', alignItems: 'center', gap: '0.45rem', flex: 1, minWidth: 0, border: 0, background: 'transparent', textAlign: 'left', padding: '0.45rem', cursor: 'pointer', fontFamily: 'inherit' } as React.CSSProperties,
+  questionNumber: { flexShrink: 0, width: '1.35rem', height: '1.35rem', borderRadius: '50%', background: '#e5e7eb', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 } as React.CSSProperties,
+  questionNavText: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' } as React.CSSProperties,
+  orderModeButton: { width: '100%', padding: '0.4rem 0.5rem', border: '1px solid #bfdbfe', borderRadius: '5px', background: '#fff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 600 } as React.CSSProperties,
+  orderModeButtonActive: { background: '#1d4ed8', color: '#fff' } as React.CSSProperties,
+  dragHandle: { display: 'flex', alignItems: 'center', padding: '0 0.45rem', color: '#6b7280', cursor: 'grab', fontSize: '1.1rem', letterSpacing: '-0.2rem' } as React.CSSProperties,
   card: { border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1.25rem', marginBottom: '1rem', background: '#fff' } as React.CSSProperties,
   btn: { padding: '0.5rem 1rem', fontSize: '0.95rem', cursor: 'pointer', borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', fontFamily: 'inherit' } as React.CSSProperties,
   input: { padding: '0.5rem 0.65rem', fontSize: '0.95rem', border: '1.5px solid #d1d5db', borderRadius: '6px', width: '100%', boxSizing: 'border-box' as const, fontFamily: 'inherit' } as React.CSSProperties,

@@ -12,6 +12,7 @@ interface ReviewTheoryQuestionRow {
   question_text: string;
   expected_answer: string;
   topic: string;
+  sort_order: number;
   result: QuestionResult | null;
   created_at: Date;
   updated_at: Date;
@@ -29,6 +30,7 @@ function toReviewTheoryQuestion(row: ReviewTheoryQuestionRow): ReviewTheoryQuest
     questionText:   row.question_text,
     expectedAnswer: row.expected_answer,
     topic:          row.topic,
+    orderIndex:     row.sort_order,
     result:         row.result,
     createdAt:      row.created_at,
     updatedAt:      row.updated_at,
@@ -51,14 +53,15 @@ export async function create(
   questionText: string,
   expectedAnswer: string,
   topic: string,
+  orderIndex: number,
 ): Promise<ReviewTheoryQuestion> {
   const { rows } = await pool.query<ReviewTheoryQuestionRow>(
     `INSERT INTO review_theory_questions
-       (review_id, question_id, question_text, expected_answer, topic)
-     VALUES ($1, $2, $3, $4, $5)
+       (review_id, question_id, question_text, expected_answer, topic, sort_order)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id, review_id, question_id, question_text, expected_answer,
-               topic, result, created_at, updated_at`,
-    [reviewId, questionId, questionText, expectedAnswer, topic],
+               topic, sort_order, result, created_at, updated_at`,
+    [reviewId, questionId, questionText, expectedAnswer, topic, orderIndex],
   );
 
   return toReviewTheoryQuestion(rows[0]!);
@@ -70,10 +73,10 @@ export async function create(
 export async function findByReviewId(reviewId: string): Promise<ReviewTheoryQuestion[]> {
   const { rows } = await pool.query<ReviewTheoryQuestionRow>(
     `SELECT id, review_id, question_id, question_text, expected_answer,
-            topic, result, created_at, updated_at
+            topic, sort_order, result, created_at, updated_at
      FROM review_theory_questions
      WHERE review_id = $1
-     ORDER BY created_at ASC`,
+     ORDER BY sort_order ASC, created_at ASC`,
     [reviewId],
   );
 
@@ -93,7 +96,7 @@ export async function updateResult(
      SET result = $1
      WHERE id = $2
      RETURNING id, review_id, question_id, question_text, expected_answer,
-               topic, result, created_at, updated_at`,
+               topic, sort_order, result, created_at, updated_at`,
     [result, id],
   );
 
@@ -128,4 +131,14 @@ export async function deleteById(id: string): Promise<boolean> {
   );
 
   return (rowCount ?? 0) > 0;
+}
+
+export async function reorder(reviewId: string, orderedIds: string[]): Promise<void> {
+  await pool.query(
+    `UPDATE review_theory_questions AS q
+     SET sort_order = positions.position
+     FROM unnest($1::uuid[], $2::integer[]) AS positions(id, position)
+     WHERE q.review_id = $3 AND q.id = positions.id`,
+    [orderedIds, orderedIds.map((_, index) => index), reviewId],
+  );
 }
