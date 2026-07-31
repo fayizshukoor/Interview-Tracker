@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { getApiErrorMessage } from '../api/client';
+import { validateEmail, validatePassword } from '../utils/authValidation';
 
 export default function LoginPage() {
     const { login, user, loading } = useAuth();
@@ -19,13 +21,19 @@ export default function LoginPage() {
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setError(null);
+
+        const emailError = validateEmail(email);
+        if (emailError) { setError(emailError); return; }
+        const passwordError = validatePassword(password);
+        if (passwordError) { setError(passwordError); return; }
+
         setSubmitting(true);
 
         try {
             await login(email.trim(), password);
             navigate('/', { replace: true });
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Unable to log in.');
+            setError(getApiErrorMessage(err, 'Unable to log in.'));
         } finally {
             setSubmitting(false);
         }

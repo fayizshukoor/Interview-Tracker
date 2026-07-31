@@ -1,16 +1,17 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { fetchCurrentUser, login as loginRequest, register as registerRequest } from '../api/authApi';
+import { fetchCurrentUser, login as loginRequest, logout as logoutRequest, registerWithOtp as registerRequest } from '../api/authApi';
 import type { User } from '../types/user';
 
 const AUTH_TOKEN_KEY = 'interview_tracker_auth_token';
+const REFRESH_TOKEN_KEY = 'interview_tracker_refresh_token';
 
 interface AuthContextValue {
     user: User | null;
     token: string | null;
     loading: boolean;
     login(email: string, password: string): Promise<void>;
-    register(email: string, password: string): Promise<void>;
-    logout(): void;
+    register(email: string, password: string, otp: string): Promise<void>;
+    logout(): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -47,20 +48,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function login(email: string, password: string) {
         const data = await loginRequest(email, password);
-        localStorage.setItem(AUTH_TOKEN_KEY, data.token);
-        setToken(data.token);
+        localStorage.setItem(AUTH_TOKEN_KEY, data.accessToken);
+        localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+        setToken(data.accessToken);
         setUser(data.user);
     }
 
-    async function register(email: string, password: string) {
-        const data = await registerRequest(email, password);
-        localStorage.setItem(AUTH_TOKEN_KEY, data.token);
-        setToken(data.token);
+    async function register(email: string, password: string, otp: string) {
+        const data = await registerRequest(email, password, otp);
+        localStorage.setItem(AUTH_TOKEN_KEY, data.accessToken);
+        localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+        setToken(data.accessToken);
         setUser(data.user);
     }
 
-    function logout() {
+    async function logout() {
+        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+        if (refreshToken) {
+            try { await logoutRequest(refreshToken); } catch { /* local logout still succeeds */ }
+        }
         localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
         setToken(null);
         setUser(null);
     }

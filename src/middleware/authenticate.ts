@@ -21,9 +21,10 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
         const payload = jwt.verify(token, env.jwtSecret) as jwt.JwtPayload & {
             userId?: string;
             email?: string;
+            type?: string;
         };
 
-        if (typeof payload.userId !== 'string' || typeof payload.email !== 'string') {
+        if (payload.type !== 'access' || typeof payload.userId !== 'string' || typeof payload.email !== 'string') {
             res.status(401).json({ error: 'Invalid authentication token.' });
             return;
         }

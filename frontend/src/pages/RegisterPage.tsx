@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { requestOtp } from '../api/authApi';
+import { getApiErrorMessage } from '../api/client';
+import { validateEmail, validatePassword } from '../utils/authValidation';
 
 export default function RegisterPage() {
     const { register, user, loading } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [otp, setOtp] = useState('');
+    const [otpSent, setOtpSent] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
@@ -19,15 +24,35 @@ export default function RegisterPage() {
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setError(null);
+
+        const emailError = validateEmail(email);
+        if (emailError) { setError(emailError); return; }
+        const passwordError = validatePassword(password);
+        if (passwordError) { setError(passwordError); return; }
+        if (!/^\d{6}$/.test(otp)) { setError('Verification code must be exactly 6 digits.'); return; }
+
         setSubmitting(true);
 
         try {
-            await register(email.trim(), password);
+            await register(email.trim(), password, otp);
             navigate('/', { replace: true });
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Unable to register.');
+            setError(getApiErrorMessage(err, 'Unable to register.'));
         } finally {
             setSubmitting(false);
+        }
+    }
+
+    async function handleRequestOtp() {
+        setError(null);
+        const emailError = validateEmail(email);
+        if (emailError) { setError(emailError); return; }
+        try {
+            const result = await requestOtp(email.trim());
+            setOtpSent(true);
+            if (result.otp) setOtp(result.otp);
+        } catch (err: unknown) {
+            setError(getApiErrorMessage(err, 'Unable to send verification code.'));
         }
     }
 
@@ -46,6 +71,15 @@ export default function RegisterPage() {
                         required
                         disabled={submitting}
                     />
+                </label>
+
+                <button type="button" className="btn" onClick={handleRequestOtp} disabled={submitting || !email}>
+                    {otpSent ? 'Resend verification code' : 'Send verification code'}
+                </button>
+
+                <label className="form-group">
+                    <span className="form-label">Email verification code</span>
+                    <input className="input" inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value)} required disabled={submitting} />
                 </label>
 
                 <label className="form-group">
