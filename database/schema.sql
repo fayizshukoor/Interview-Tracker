@@ -1,177 +1,227 @@
 -- =============================================================================
 -- Interview Tracker — PostgreSQL Database Schema
--- Version: 1.0
--- Description: Full schema with tables, constraints, indexes, and triggers.
+-- Version: 2.0
+-- Description: Current schema aligned with the migrations under src/database/migrations
 -- =============================================================================
 
--- Enable the pgcrypto extension for UUID generation
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- Enable citext for case-insensitive text comparisons
 CREATE EXTENSION IF NOT EXISTS "citext";
 
 -- =============================================================================
 -- ENUM TYPES
 -- =============================================================================
 
-CREATE TYPE review_status     AS ENUM ('draft', 'finalized');
-CREATE TYPE question_result   AS ENUM ('correct', 'incorrect');
+CREATE TYPE IF NOT EXISTS review_status AS ENUM ('draft', 'finalized');
+CREATE TYPE IF NOT EXISTS question_result AS ENUM ('correct', 'incorrect');
+
+-- =============================================================================
+-- TABLE: users
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS users (
+    id           UUID        NOT NULL DEFAULT gen_random_uuid(),
+    email        TEXT        NOT NULL UNIQUE,
+    password_hash TEXT       NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT users_pkey PRIMARY KEY (id)
+);
 
 -- =============================================================================
 -- TABLE: candidates
--- Stores candidate profiles managed by interviewers.
 -- =============================================================================
 
-CREATE TABLE candidates (
+CREATE TABLE IF NOT EXISTS candidates (
     id          UUID        NOT NULL DEFAULT gen_random_uuid(),
     name        CITEXT      NOT NULL,
+    owner_id    UUID        NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT candidates_pkey        PRIMARY KEY (id),
-    CONSTRAINT candidates_name_unique UNIQUE (name)
+    CONSTRAINT candidates_name_unique UNIQUE (name),
+    CONSTRAINT candidates_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE SET NULL
 );
 
--- Index for partial name search (ILIKE queries use this via lower())
-CREATE INDEX idx_candidates_name ON candidates (name);
+CREATE INDEX IF NOT EXISTS idx_candidates_name ON candidates (name);
+CREATE INDEX IF NOT EXISTS idx_candidates_owner_id ON candidates (owner_id);
 
 -- =============================================================================
 -- TABLE: questions
--- Persistent question bank used across all reviews.
 -- =============================================================================
 
-CREATE TABLE questions (
+CREATE TABLE IF NOT EXISTS questions (
     id               UUID        NOT NULL DEFAULT gen_random_uuid(),
     question_text    TEXT        NOT NULL,
     expected_answer  TEXT        NOT NULL,
     topic            VARCHAR(255) NOT NULL,
-    question_type    VARCHAR(20)  NOT NULL DEFAULT 'normal' CHECK (question_type IN ('normal', 'code_snippet')),
-    is_deleted       BOOLEAN     NOT NULL DEFAULT FALSE,   -- soft delete
+    question_type    VARCHAR(20) NOT NULL DEFAULT 'normal' CHECK (question_type IN ('normal', 'code_snippet')),
+    is_deleted       BOOLEAN     NOT NULL DEFAULT FALSE,
+    owner_id         UUID        NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    CONSTRAINT questions_pkey PRIMARY KEY (id)
+    CONSTRAINT questions_pkey PRIMARY KEY (id),
+    CONSTRAINT questions_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE SET NULL
 );
 
--- Index for topic-based filtering (most common query pattern)
-CREATE INDEX idx_questions_topic      ON questions (topic)      WHERE is_deleted = FALSE;
-CREATE INDEX idx_questions_is_deleted ON questions (is_deleted);
+CREATE INDEX IF NOT EXISTS idx_questions_topic      ON questions (topic) WHERE is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_questions_is_deleted ON questions (is_deleted);
+CREATE INDEX IF NOT EXISTS idx_questions_owner_id   ON questions (owner_id);
+
+-- =============================================================================
+-- TABLE: practical_questions
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS practical_questions (
+    id               UUID         NOT NULL DEFAULT gen_random_uuid(),
+    task_text        TEXT         NOT NULL,
+    expected_answer  TEXT         NULL,
+    topic            VARCHAR(255) NOT NULL,
+    is_deleted       BOOLEAN      NOT NULL DEFAULT FALSE,
+    owner_id         UUID         NULL,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+
+    CONSTRAINT pq_pkey PRIMARY KEY (id),
+    CONSTRAINT pq_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pq_topic ON practical_questions (topic) WHERE is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_pq_is_deleted ON practical_questions (is_deleted);
+CREATE INDEX IF NOT EXISTS idx_pq_owner_id ON practical_questions (owner_id);
 
 -- =============================================================================
 -- TABLE: reviews
--- Top-level review session for a candidate.
--- Scores are NULL while status = 'draft', populated on finalization.
 -- =============================================================================
 
-CREATE TABLE reviews (
+CREATE TABLE IF NOT EXISTS reviews (
     id               UUID           NOT NULL DEFAULT gen_random_uuid(),
     candidate_id     UUID           NOT NULL,
+    owner_id         UUID           NULL,
     status           review_status  NOT NULL DEFAULT 'draft',
-    theory_score     NUMERIC(5, 2)  NULL CHECK (theory_score   BETWEEN 0 AND 100),
+    theory_score     NUMERIC(5, 2)  NULL CHECK (theory_score BETWEEN 0 AND 100),
     practical_score  NUMERIC(5, 2)  NULL CHECK (practical_score BETWEEN 0 AND 100),
     feedback         TEXT           NULL,
-    conducted_at     TIMESTAMPTZ    NULL,   -- set when finalized
+    conducted_at     TIMESTAMPTZ    NULL,
     created_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ    NOT NULL DEFAULT now(),
 
-    CONSTRAINT reviews_pkey             PRIMARY KEY (id),
-    CONSTRAINT reviews_candidate_fk     FOREIGN KEY (candidate_id)
-        REFERENCES candidates (id) ON DELETE RESTRICT,
-
-    -- Enforce at most one draft per candidate at a time
+    CONSTRAINT reviews_pkey PRIMARY KEY (id),
+    CONSTRAINT reviews_candidate_fk FOREIGN KEY (candidate_id) REFERENCES candidates (id) ON DELETE RESTRICT,
+    CONSTRAINT reviews_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE SET NULL,
     CONSTRAINT reviews_one_draft_per_candidate
         EXCLUDE USING btree (candidate_id WITH =)
         WHERE (status = 'draft')
 );
 
--- History queries: candidate reviews ordered by date
-CREATE INDEX idx_reviews_candidate_conducted ON reviews (candidate_id, conducted_at DESC);
--- Dashboard date-range filtering
-CREATE INDEX idx_reviews_conducted_at        ON reviews (conducted_at);
-CREATE INDEX idx_reviews_status              ON reviews (status);
+CREATE INDEX IF NOT EXISTS idx_reviews_candidate_conducted ON reviews (candidate_id, conducted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reviews_conducted_at ON reviews (conducted_at);
+CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews (status);
+CREATE INDEX IF NOT EXISTS idx_reviews_owner_id ON reviews (owner_id);
 
 -- =============================================================================
 -- TABLE: review_theory_questions
--- Snapshot of each question selected for a theory review.
--- Question text and expected answer are copied at selection time so that
--- future edits or deletions of the source question never corrupt history.
 -- =============================================================================
 
-CREATE TABLE review_theory_questions (
+CREATE TABLE IF NOT EXISTS review_theory_questions (
     id               UUID            NOT NULL DEFAULT gen_random_uuid(),
     review_id        UUID            NOT NULL,
-    -- Nullable: source question may be deleted; snapshot is preserved regardless
     question_id      UUID            NULL,
-    -- Snapshot columns (copied from questions at selection time)
     question_text    TEXT            NOT NULL,
     expected_answer  TEXT            NOT NULL,
     topic            VARCHAR(255)    NOT NULL,
     question_type    VARCHAR(20)     NOT NULL DEFAULT 'normal' CHECK (question_type IN ('normal', 'code_snippet')),
-    result           question_result NULL,    -- NULL until interviewer marks it
+    result           question_result NULL,
+    sort_order       INTEGER         NULL,
     created_at       TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ     NOT NULL DEFAULT now(),
 
-    CONSTRAINT rtq_pkey        PRIMARY KEY (id),
-    CONSTRAINT rtq_review_fk   FOREIGN KEY (review_id)
-        REFERENCES reviews (id) ON DELETE CASCADE,
-    CONSTRAINT rtq_question_fk FOREIGN KEY (question_id)
-        REFERENCES questions (id) ON DELETE SET NULL,
-
-    -- A question should not be added twice to the same review
+    CONSTRAINT rtq_pkey PRIMARY KEY (id),
+    CONSTRAINT rtq_review_fk FOREIGN KEY (review_id) REFERENCES reviews (id) ON DELETE CASCADE,
+    CONSTRAINT rtq_question_fk FOREIGN KEY (question_id) REFERENCES questions (id) ON DELETE SET NULL,
     CONSTRAINT rtq_unique_question_per_review UNIQUE (review_id, question_id)
 );
 
-CREATE INDEX idx_rtq_review_id   ON review_theory_questions (review_id);
-CREATE INDEX idx_rtq_question_id ON review_theory_questions (question_id);
--- Used when computing theory score (counting correct/incorrect)
-CREATE INDEX idx_rtq_result      ON review_theory_questions (review_id, result);
+CREATE INDEX IF NOT EXISTS idx_rtq_review_id ON review_theory_questions (review_id);
+CREATE INDEX IF NOT EXISTS idx_rtq_question_id ON review_theory_questions (question_id);
+CREATE INDEX IF NOT EXISTS idx_rtq_result ON review_theory_questions (review_id, result);
+CREATE INDEX IF NOT EXISTS idx_rtq_review_order ON review_theory_questions (review_id, sort_order);
 
 -- =============================================================================
 -- TABLE: review_practical_tasks
--- One or more practical tasks assigned during a review, each with a score.
 -- =============================================================================
 
-CREATE TABLE review_practical_tasks (
-    id          UUID           NOT NULL DEFAULT gen_random_uuid(),
-    review_id   UUID           NOT NULL,
-    task_text   TEXT           NOT NULL,
-    score       NUMERIC(5, 2)  NOT NULL CHECK (score BETWEEN 0 AND 100),
-    elapsed_seconds INTEGER    NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ    NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ    NOT NULL DEFAULT now(),
+CREATE TABLE IF NOT EXISTS review_practical_tasks (
+    id                  UUID           NOT NULL DEFAULT gen_random_uuid(),
+    review_id           UUID           NOT NULL,
+    task_text           TEXT           NOT NULL,
+    expected_answer     TEXT           NULL,
+    score               NUMERIC(5, 2)  NULL CHECK (score BETWEEN 0 AND 100),
+    start_time          TIMESTAMPTZ    NULL,
+    end_time            TIMESTAMPTZ    NULL,
+    active_start_time   TIMESTAMPTZ    NULL,
+    elapsed_seconds     INTEGER        NOT NULL DEFAULT 0,
+    created_at          TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ    NOT NULL DEFAULT now(),
 
-    CONSTRAINT rpt_pkey      PRIMARY KEY (id),
-    CONSTRAINT rpt_review_fk FOREIGN KEY (review_id)
-        REFERENCES reviews (id) ON DELETE CASCADE
+    CONSTRAINT rpt_pkey PRIMARY KEY (id),
+    CONSTRAINT rpt_review_fk FOREIGN KEY (review_id) REFERENCES reviews (id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_rpt_review_id ON review_practical_tasks (review_id);
+CREATE INDEX IF NOT EXISTS idx_rpt_review_id ON review_practical_tasks (review_id);
 
 -- =============================================================================
 -- TABLE: review_pending_topics
--- Denormalized record of topics that failed in a review.
--- Populated automatically when a theory question is marked 'incorrect'.
--- Stored separately to enable efficient GROUP BY aggregations on the dashboard
--- without scanning all theory question rows.
 -- =============================================================================
 
-CREATE TABLE review_pending_topics (
+CREATE TABLE IF NOT EXISTS review_pending_topics (
     id             UUID         NOT NULL DEFAULT gen_random_uuid(),
     review_id      UUID         NOT NULL,
     topic          VARCHAR(255) NOT NULL,
     question_text  TEXT         NOT NULL,
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
-    CONSTRAINT rpen_pkey      PRIMARY KEY (id),
-    CONSTRAINT rpen_review_fk FOREIGN KEY (review_id)
-        REFERENCES reviews (id) ON DELETE CASCADE
+    CONSTRAINT rpen_pkey PRIMARY KEY (id),
+    CONSTRAINT rpen_review_fk FOREIGN KEY (review_id) REFERENCES reviews (id) ON DELETE CASCADE
 );
 
--- Primary access pattern: aggregate by topic across all reviews
-CREATE INDEX idx_rpen_topic     ON review_pending_topics (topic);
-CREATE INDEX idx_rpen_review_id ON review_pending_topics (review_id);
--- Dashboard date-range join via review
-CREATE INDEX idx_rpen_topic_review ON review_pending_topics (topic, review_id);
+CREATE INDEX IF NOT EXISTS idx_rpen_topic ON review_pending_topics (topic);
+CREATE INDEX IF NOT EXISTS idx_rpen_review_id ON review_pending_topics (review_id);
+CREATE INDEX IF NOT EXISTS idx_rpen_topic_review ON review_pending_topics (topic, review_id);
+
+-- =============================================================================
+-- TABLE: refresh_tokens
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    family_id UUID NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens (user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family_id ON refresh_tokens (family_id);
+
+-- =============================================================================
+-- TABLE: email_verification_otps
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS email_verification_otps (
+    id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    email TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_otps_email ON email_verification_otps (email, created_at DESC);
 
 -- =============================================================================
 -- TRIGGERS: updated_at auto-maintenance
@@ -185,12 +235,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE TRIGGER trg_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 CREATE TRIGGER trg_candidates_updated_at
     BEFORE UPDATE ON candidates
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE TRIGGER trg_questions_updated_at
     BEFORE UPDATE ON questions
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER trg_pq_updated_at
+    BEFORE UPDATE ON practical_questions
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE TRIGGER trg_reviews_updated_at
@@ -206,22 +264,20 @@ CREATE TRIGGER trg_rpt_updated_at
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- =============================================================================
--- VIEWS: Convenience views for common queries
+-- VIEWS: convenience views for common queries
 -- =============================================================================
 
--- Latest finalized review per candidate (used by dashboard candidate list)
 CREATE VIEW v_candidate_latest_review AS
 SELECT DISTINCT ON (r.candidate_id)
     r.candidate_id,
-    r.id              AS review_id,
+    r.id AS review_id,
     r.theory_score,
     r.practical_score,
-    r.conducted_at    AS last_review_at
+    r.conducted_at AS last_review_at
 FROM reviews r
 WHERE r.status = 'finalized'
 ORDER BY r.candidate_id, r.conducted_at DESC;
 
--- Pending topic failure counts (used by dashboard top-failed-topics)
 CREATE VIEW v_topic_failure_counts AS
 SELECT
     rpen.topic,
