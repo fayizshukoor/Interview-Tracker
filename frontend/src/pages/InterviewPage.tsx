@@ -10,11 +10,14 @@ import {
   deletePracticalTask,
   startPracticalTaskTimer,
   stopPracticalTaskTimer,
+  resetPracticalTaskTimer,
   finalizeReview,
   reorderReviewQuestions,
 } from '../api/reviewApi';
 import { getQuestions } from '../api/questionApi';
+import { getPracticalQuestions } from '../api/practicalQuestionApi';
 import type { ReviewTheoryQuestion, ReviewPracticalTask } from '../types/review';
+import type { PracticalQuestion } from '../types/review';
 import type { Question } from '../types/question';
 import { formatExpectedAnswer, formatTextDisplay } from '../utils/formatExpectedAnswer';
 
@@ -55,6 +58,13 @@ export default function InterviewPage() {
   const [newExpected, setNewExpected] = useState('');
   const [addingTask, setAddingTask] = useState(false);
   const [addTaskError, setAddTaskError] = useState<string | null>(null);
+  const [practicalBankOpen, setPracticalBankOpen] = useState(false);
+  const [practicalBank, setPracticalBank] = useState<PracticalQuestion[]>([]);
+  const [practicalBankLoading, setPracticalBankLoading] = useState(false);
+  const [practicalBankFilter, setPracticalBankFilter] = useState('');
+  const [pickedPracticalIds, setPickedPracticalIds] = useState<Set<string>>(new Set());
+  const [addingPracticalFromBank, setAddingPracticalFromBank] = useState(false);
+  const [practicalBankError, setPracticalBankError] = useState<string | null>(null);
 
   // ── Timer ─────────────────────────────────────────────────────────────────
   const [timers, setTimers] = useState<Record<string, number>>({});
@@ -136,6 +146,49 @@ export default function InterviewPage() {
       .finally(() => setBankLoading(false));
   }
 
+  function openPracticalBank() {
+    setPracticalBankOpen(true);
+    setPracticalBankError(null);
+    setPickedPracticalIds(new Set());
+    setPracticalBankFilter('');
+    if (practicalBank.length > 0) return;
+    setPracticalBankLoading(true);
+    getPracticalQuestions()
+      .then(setPracticalBank)
+      .catch(() => setPracticalBankError('Failed to load practical question bank.'))
+      .finally(() => setPracticalBankLoading(false));
+  }
+
+  const filteredPracticalBank = practicalBankFilter.trim()
+    ? practicalBank.filter((q) =>
+      q.taskText.toLowerCase().includes(practicalBankFilter.toLowerCase()) ||
+      q.topic.toLowerCase().includes(practicalBankFilter.toLowerCase()),
+    )
+    : practicalBank;
+
+  const alreadyAddedPracticalTexts = new Set(practicalTasks.map((task) => task.taskText));
+
+  async function handleAddPracticalFromBank() {
+    if (!reviewId || pickedPracticalIds.size === 0) return;
+    setAddingPracticalFromBank(true);
+    setPracticalBankError(null);
+    try {
+      const selected = practicalBank.filter((q) => pickedPracticalIds.has(q.id));
+      const added = await Promise.all(selected.map((q) =>
+        addPracticalTask(reviewId, q.taskText, q.expectedAnswer ?? undefined),
+      ));
+      setPracticalTasks((prev) => [...prev, ...added]);
+      setScoreInputs((prev) => Object.fromEntries([...Object.entries(prev), ...added.map((task) => [task.id, ''])]));
+      setTimers((prev) => Object.fromEntries([...Object.entries(prev), ...added.map((task) => [task.id, 0])]));
+      setPickedPracticalIds(new Set());
+      setPracticalBankOpen(false);
+    } catch (err: unknown) {
+      setPracticalBankError(err instanceof Error ? err.message : 'Failed to add practical questions.');
+    } finally {
+      setAddingPracticalFromBank(false);
+    }
+  }
+
   // IDs already in this review — disable them in the picker
   const alreadyAddedIds = new Set(
     questions.map((q) => q.questionId).filter(Boolean) as string[]
@@ -214,6 +267,20 @@ export default function InterviewPage() {
       // surface errors to console for debugging
       // eslint-disable-next-line no-console
       console.error('Failed to persist end time', err);
+    }
+  }, [runningTaskId]);
+
+  const resetTimer = useCallback(async (taskId: string) => {
+    if (runningTaskId === taskId) {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      setRunningTaskId(null);
+    }
+    try {
+      const updated = await resetPracticalTaskTimer(taskId);
+      setPracticalTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
+      setTimers((prev) => ({ ...prev, [taskId]: 0 }));
+    } catch (err) {
+      console.error('Failed to reset timer', err);
     }
   }, [runningTaskId]);
 
@@ -579,9 +646,67 @@ export default function InterviewPage() {
   // ── Render: PRACTICAL phase ───────────────────────────────────────────────
   return (
     <Wrap>
+      {practicalBankOpen && (
+        <div style={S.modal}>
+          <div style={S.modalBox}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <h3 style={{ margin: 0 }}>Add Practical Questions from Bank</h3>
+              <button onClick={() => setPracticalBankOpen(false)} style={{ ...S.btn, padding: '0.2rem 0.6rem' }}>✕</button>
+            </div>
+            <input
+              type="text"
+              placeholder="Filter by task or topic…"
+              value={practicalBankFilter}
+              onChange={(event) => setPracticalBankFilter(event.target.value)}
+              style={{ ...S.input, marginBottom: '0.75rem' }}
+            />
+            {practicalBankLoading && <p style={{ color: '#888' }}>Loading practical questions…</p>}
+            {practicalBankError && <p style={S.error}>{practicalBankError}</p>}
+            {!practicalBankLoading && filteredPracticalBank.length === 0 && <p style={{ color: '#888' }}>No practical questions found.</p>}
+            <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px', marginBottom: '0.75rem' }}>
+              {filteredPracticalBank.map((question) => {
+                const isAdded = alreadyAddedPracticalTexts.has(question.taskText);
+                const isPicked = pickedPracticalIds.has(question.id);
+                return (
+                  <label key={question.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.65rem 0.75rem', borderBottom: '1px solid #f3f4f6', background: isAdded ? '#f9fafb' : isPicked ? '#eff6ff' : '#fff', opacity: isAdded ? 0.55 : 1, cursor: isAdded ? 'default' : 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      disabled={isAdded}
+                      checked={isAdded || isPicked}
+                      onChange={() => {
+                        if (isAdded) return;
+                        setPickedPracticalIds((previous) => {
+                          const next = new Set(previous);
+                          if (next.has(question.id)) next.delete(question.id); else next.add(question.id);
+                          return next;
+                        });
+                      }}
+                      style={{ marginTop: '3px', flexShrink: 0 }}
+                    />
+                    <span>
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600, marginRight: '0.4rem' }}>[{question.topic}]</span>
+                      {question.taskText}
+                      {isAdded && <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#15803d', fontWeight: 600 }}>✓ Added</span>}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: '0.6rem' }}>
+              <button onClick={handleAddPracticalFromBank} disabled={pickedPracticalIds.size === 0 || addingPracticalFromBank} style={{ ...S.btn, background: '#1a56db', color: '#fff', border: 'none', fontWeight: 600 }}>
+                {addingPracticalFromBank ? 'Adding…' : `Add ${pickedPracticalIds.size > 0 ? `(${pickedPracticalIds.size})` : ''} Selected`}
+              </button>
+              <button onClick={() => setPracticalBankOpen(false)} style={S.btn}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 style={{ margin: 0 }}>Practical Tasks</h1>
-        <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>{practicalTasks.length} task{practicalTasks.length !== 1 ? 's' : ''}</span>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button onClick={openPracticalBank} style={{ ...S.btn, fontWeight: 600, color: '#1a56db', border: '1px solid #bfdbfe' }}>+ Add from Bank</button>
+          <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>{practicalTasks.length} task{practicalTasks.length !== 1 ? 's' : ''}</span>
+        </div>
       </div>
 
       {/* Add task */}
@@ -633,14 +758,18 @@ export default function InterviewPage() {
               {!isRunning ? (
                 <button onClick={() => startTimer(task.id)}
                   style={{ ...S.btn, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: 600 }}>
-                  {elapsed > 0 ? '▶ Resume Timer' : '▶ Start Timer'}
+                  {elapsed > 0 ? '↻ Resume Timer' : '▶ Start Timer'}
                 </button>
               ) : (
                 <button onClick={() => stopTimer(task.id)}
                   style={{ ...S.btn, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 600 }}>
-                  ❚❚ Pause Timer
+                  ■ Stop Timer
                 </button>
               )}
+              <button onClick={() => resetTimer(task.id)} disabled={isRunning || elapsed === 0}
+                style={{ ...S.btn, background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', fontWeight: 600 }}>
+                ↺ Reset
+              </button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
               <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>Score (0–100)</label>
@@ -656,7 +785,7 @@ export default function InterviewPage() {
             {scoreErrors[task.id] && <p style={S.error}>{scoreErrors[task.id]}</p>}
             <div style={{ marginTop: '0.6rem', fontSize: '0.88rem', color: '#555' }}>
               <div>Start: {formatTimestampTo12Hour(task.startTime)}</div>
-              <div>{task.endTime ? 'Paused: ' : 'End: '}{task.endTime ? formatTimestampTo12Hour(task.endTime) : (isRunning ? 'Running…' : '—')}</div>
+              <div>{task.endTime ? 'Stopped: ' : 'End: '}{task.endTime ? formatTimestampTo12Hour(task.endTime) : (isRunning ? 'Running…' : '—')}</div>
             </div>
           </section>
         );

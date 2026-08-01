@@ -141,3 +141,8 @@ export async function stopPracticalTaskTimer(taskId: string, endedAt: string): P
   const response = await client.patch<ReviewPracticalTask>(`/practical-tasks/${taskId}/stop`, { endedAt });
   return response.data;
 }
+
+export async function resetPracticalTaskTimer(taskId: string): Promise<ReviewPracticalTask> {
+  const response = await client.patch<ReviewPracticalTask>(`/practical-tasks/${taskId}/reset`);
+  return response.data;
+}

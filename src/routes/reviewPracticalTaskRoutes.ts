@@ -6,6 +6,7 @@ import {
   deletePracticalTask,
   startPracticalTask,
   stopPracticalTask,
+  resetPracticalTask,
 } from '../controllers/reviewPracticalTaskController.js';
 
 const router = Router();
@@ -19,5 +20,6 @@ router.patch('/practical-tasks/:taskId/score', scorePracticalTask);
 router.delete('/practical-tasks/:taskId', deletePracticalTask);
 router.patch('/practical-tasks/:taskId/start', startPracticalTask);
 router.patch('/practical-tasks/:taskId/stop', stopPracticalTask);
+router.patch('/practical-tasks/:taskId/reset', resetPracticalTask);
 
 export default router;

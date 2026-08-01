@@ -10,6 +10,7 @@ import type { PracticalQuestion } from '../types/review';
 import { formatExpectedAnswer, formatTextDisplay, normalizeExpectedAnswer } from '../utils/formatExpectedAnswer';
 
 type Tab = 'theory' | 'practical';
+type PendingDelete = { kind: 'theory' | 'practical'; id: string; text: string };
 
 const EMPTY_THEORY = { questionText: '', expectedAnswer: '', topic: '', questionType: 'normal' as QuestionType };
 const EMPTY_PRACTICAL = { taskText: '', expectedAnswer: '', topic: '' };
@@ -34,6 +35,8 @@ export default function QuestionsPage() {
   const [pForm, setPForm] = useState(EMPTY_PRACTICAL);
   const [pSubmitting, setPSubmitting] = useState(false);
   const [pSubmitError, setPSubmitError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   // ── Theory fetch ──────────────────────────────────────────────────────────
   const fetchTheory = useCallback(async (topic: string) => {
@@ -63,6 +66,13 @@ export default function QuestionsPage() {
 
   // ── Theory handlers ───────────────────────────────────────────────────────
   const tFormValid = tForm.questionText.trim() && tForm.expectedAnswer.trim() && tForm.topic.trim();
+  const theorySections = [
+    { type: 'normal' as const, title: 'Normal Questions' },
+    { type: 'code_snippet' as const, title: 'Code Snippet Questions' },
+  ].map((section) => ({
+    ...section,
+    questions: questions.filter((question) => question.questionType === section.type),
+  })).filter((section) => section.questions.length > 0);
 
   async function handleAddTheory() {
     if (!tFormValid) return;
@@ -82,9 +92,7 @@ export default function QuestionsPage() {
   }
 
   async function handleDeleteTheory(id: string, text: string) {
-    if (!window.confirm(`Delete question:\n"${text}"?`)) return;
-    try { await deleteQuestion(id); await fetchTheory(topicFilter); }
-    catch { alert('Failed to delete question.'); }
+    setPendingDelete({ kind: 'theory', id, text });
   }
 
   // ── Practical handlers ────────────────────────────────────────────────────
@@ -107,9 +115,26 @@ export default function QuestionsPage() {
   }
 
   async function handleDeletePractical(id: string, text: string) {
-    if (!window.confirm(`Delete practical question:\n"${text}"?`)) return;
-    try { await deletePracticalQuestion(id); await fetchPractical(pTopicFilter); }
-    catch { alert('Failed to delete practical question.'); }
+    setPendingDelete({ kind: 'practical', id, text });
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleteSubmitting(true);
+    try {
+      if (pendingDelete.kind === 'theory') {
+        await deleteQuestion(pendingDelete.id);
+        await fetchTheory(topicFilter);
+      } else {
+        await deletePracticalQuestion(pendingDelete.id);
+        await fetchPractical(pTopicFilter);
+      }
+      setPendingDelete(null);
+    } catch {
+      alert(`Failed to delete ${pendingDelete.kind === 'theory' ? 'question' : 'practical question'}.`);
+    } finally {
+      setDeleteSubmitting(false);
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -174,21 +199,27 @@ export default function QuestionsPage() {
             <p className="text-muted">No questions found{topicFilter ? ` for "${topicFilter}"` : ''}.</p>
           )}
           {!tLoading && !tError && questions.length > 0 && (
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <table className="table">
-                <thead><tr><th>Question</th><th>Type</th><th>Topic</th><th>Expected Answer</th><th style={{ width: 80 }}>Actions</th></tr></thead>
-                <tbody>
-                  {questions.map((q) => (
-                    <tr key={q.id}>
-                      <td>{formatTextDisplay(q.questionText)}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{q.questionType === 'code_snippet' ? 'Code snippet' : 'Normal'}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{q.topic}</td>
-                      <td style={{ color: '#555', fontSize: '0.875rem' }}>{formatExpectedAnswer(q.expectedAnswer)}</td>
-                      <td><button className="btn btn-danger btn-sm" onClick={() => handleDeleteTheory(q.id, q.questionText)}>Delete</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {theorySections.map((section) => (
+                <section key={section.type}>
+                  <h2 style={{ fontSize: '1rem', margin: '0 0 0.6rem', color: '#374151' }}>{section.title}</h2>
+                  <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <table className="table">
+                      <thead><tr><th>Question</th><th>Topic</th><th>Expected Answer</th><th style={{ width: 80 }}>Actions</th></tr></thead>
+                      <tbody>
+                        {section.questions.map((q) => (
+                          <tr key={q.id}>
+                            <td>{formatTextDisplay(q.questionText)}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>{q.topic}</td>
+                            <td style={{ color: '#555', fontSize: '0.875rem' }}>{formatExpectedAnswer(q.expectedAnswer)}</td>
+                            <td><button className="btn btn-danger btn-sm" onClick={() => handleDeleteTheory(q.id, q.questionText)}>Delete</button></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ))}
             </div>
           )}
         </>
@@ -245,6 +276,39 @@ export default function QuestionsPage() {
             </div>
           )}
         </>
+      )}
+
+      {pendingDelete && (
+        <div
+          role="presentation"
+          onClick={() => { if (!deleteSubmitting) setPendingDelete(null); }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem', background: 'rgba(17, 24, 39, 0.55)',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-question-title"
+            onClick={(event) => event.stopPropagation()}
+            style={{ width: '100%', maxWidth: '440px', background: '#fff', borderRadius: '10px', padding: '1.5rem', boxShadow: '0 20px 50px rgba(0,0,0,0.25)' }}
+          >
+            <h2 id="delete-question-title" style={{ margin: '0 0 0.6rem', fontSize: '1.15rem' }}>Delete question?</h2>
+            <p style={{ margin: '0 0 1.25rem', color: '#4b5563', lineHeight: 1.5 }}>
+              This will remove the question from the active question bank.
+            </p>
+            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0.7rem', marginBottom: '1.25rem', maxHeight: '120px', overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {pendingDelete.text}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+              <button className="btn btn-secondary" onClick={() => setPendingDelete(null)} disabled={deleteSubmitting}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirmDelete} disabled={deleteSubmitting}>
+                {deleteSubmitting ? 'Deleting…' : 'Delete Question'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

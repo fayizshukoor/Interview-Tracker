@@ -13,6 +13,7 @@ interface ReviewPracticalTaskRow {
   score: string | null;     // pg returns NUMERIC as string
   start_time: Date | null;
   end_time: Date | null;
+  active_start_time: Date | null;
   elapsed_seconds: number;
   created_at: Date;
   updated_at: Date;
@@ -37,7 +38,7 @@ function toTask(row: ReviewPracticalTaskRow): ReviewPracticalTask {
   };
 }
 
-const COLUMNS = `id, review_id, task_text, expected_answer, score, start_time, end_time, elapsed_seconds, created_at, updated_at`;
+const COLUMNS = `id, review_id, task_text, expected_answer, score, start_time, end_time, active_start_time, elapsed_seconds, created_at, updated_at`;
 
 // ---------------------------------------------------------------------------
 // Repository methods
@@ -99,7 +100,9 @@ export async function updateScore(
 export async function setStartTime(id: string, startedAt: string): Promise<ReviewPracticalTask | null> {
   const { rows } = await pool.query<ReviewPracticalTaskRow>(
     `UPDATE review_practical_tasks
-     SET start_time = $1, end_time = NULL
+     SET start_time = COALESCE(start_time, $1),
+         active_start_time = $1,
+         end_time = NULL
      WHERE id = $2
      RETURNING ${COLUMNS}`,
     [startedAt, id],
@@ -111,14 +114,26 @@ export async function setEndTime(id: string, endedAt: string): Promise<ReviewPra
   const { rows } = await pool.query<ReviewPracticalTaskRow>(
     `UPDATE review_practical_tasks
      SET end_time = $1,
+         active_start_time = NULL,
          elapsed_seconds = elapsed_seconds + CASE
-           WHEN start_time IS NOT NULL AND end_time IS NULL
-           THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM ($1::timestamptz - start_time)))::INTEGER)
+           WHEN active_start_time IS NOT NULL AND end_time IS NULL
+           THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM ($1::timestamptz - active_start_time)))::INTEGER)
            ELSE 0
          END
      WHERE id = $2
      RETURNING ${COLUMNS}`,
     [endedAt, id],
+  );
+  return rows[0] ? toTask(rows[0]) : null;
+}
+
+export async function resetTimer(id: string): Promise<ReviewPracticalTask | null> {
+  const { rows } = await pool.query<ReviewPracticalTaskRow>(
+    `UPDATE review_practical_tasks
+     SET start_time = NULL, end_time = NULL, active_start_time = NULL, elapsed_seconds = 0
+     WHERE id = $1
+     RETURNING ${COLUMNS}`,
+    [id],
   );
   return rows[0] ? toTask(rows[0]) : null;
 }

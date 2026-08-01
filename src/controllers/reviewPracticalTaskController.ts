@@ -104,3 +104,14 @@ export async function stopPracticalTask(req: Request, res: Response): Promise<vo
     res.status(statusFromError(message)).json({ error: message });
   }
 }
+
+export async function resetPracticalTask(req: Request, res: Response): Promise<void> {
+  try {
+    const taskId = req.params['taskId'] as string;
+    const task = await service.resetPracticalTask(taskId);
+    res.status(200).json(task);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unexpected error.';
+    res.status(statusFromError(message)).json({ error: message });
+  }
+}

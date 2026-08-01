@@ -53,3 +53,9 @@ export async function setPracticalTaskEnded(taskId: string, endedAt: string): Pr
   if (!updated) throw new Error(`Practical task with id "${taskId}" not found.`);
   return updated;
 }
+
+export async function resetPracticalTask(taskId: string): Promise<ReviewPracticalTask> {
+  const updated = await repo.resetTimer(taskId);
+  if (!updated) throw new Error(`Practical task with id "${taskId}" not found.`);
+  return updated;
+}
