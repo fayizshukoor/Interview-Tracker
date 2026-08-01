@@ -531,7 +531,7 @@ export default function InterviewPage() {
 
         {/* Question navigator and current question */}
         {total > 0 && (
-          <div style={S.interviewGrid}>
+          <div className="interview-layout" style={S.interviewGrid}>
             <aside style={S.questionNav} aria-label="Interview questions">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem' }}>
                 <strong>Questions</strong>
@@ -701,7 +701,7 @@ export default function InterviewPage() {
           </div>
         </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div className="practical-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 style={{ margin: 0 }}>Practical Tasks</h1>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button onClick={openPracticalBank} style={{ ...S.btn, fontWeight: 600, color: '#1a56db', border: '1px solid #bfdbfe' }}>+ Add from Bank</button>
