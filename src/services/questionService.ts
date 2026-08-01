@@ -1,10 +1,11 @@
 import * as questionRepository from '../repositories/questionRepository.js';
-import type { Question } from '../types/index.js';
+import type { Question, QuestionType } from '../types/index.js';
 
 export async function createQuestion(
   questionText: string,
   expectedAnswer: string,
   topic: string,
+  questionType: QuestionType = 'normal',
 ): Promise<Question> {
   const trimmedText   = questionText.trim();
   const trimmedAnswer = expectedAnswer.trim();
@@ -14,7 +15,7 @@ export async function createQuestion(
   if (!trimmedAnswer) throw new Error('Expected answer cannot be empty.');
   if (!trimmedTopic)  throw new Error('Topic cannot be empty.');
 
-  return questionRepository.create(trimmedText, trimmedAnswer, trimmedTopic);
+  return questionRepository.create(trimmedText, trimmedAnswer, trimmedTopic, questionType);
 }
 
 export async function getQuestion(id: string): Promise<Question> {

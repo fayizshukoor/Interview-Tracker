@@ -5,13 +5,13 @@ import {
 import {
   getPracticalQuestions, createPracticalQuestion, deletePracticalQuestion,
 } from '../api/practicalQuestionApi';
-import type { Question } from '../types/question';
+import type { Question, QuestionType } from '../types/question';
 import type { PracticalQuestion } from '../types/review';
 import { formatExpectedAnswer, formatTextDisplay, normalizeExpectedAnswer } from '../utils/formatExpectedAnswer';
 
 type Tab = 'theory' | 'practical';
 
-const EMPTY_THEORY = { questionText: '', expectedAnswer: '', topic: '' };
+const EMPTY_THEORY = { questionText: '', expectedAnswer: '', topic: '', questionType: 'normal' as QuestionType };
 const EMPTY_PRACTICAL = { taskText: '', expectedAnswer: '', topic: '' };
 
 export default function QuestionsPage() {
@@ -72,6 +72,7 @@ export default function QuestionsPage() {
         questionText: tForm.questionText.trim(),
         expectedAnswer: normalizeExpectedAnswer(tForm.expectedAnswer.trim()),
         topic: tForm.topic.trim(),
+        questionType: tForm.questionType,
       });
       setTForm(EMPTY_THEORY);
       await fetchTheory(topicFilter);
@@ -139,6 +140,15 @@ export default function QuestionsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               <textarea className="input" placeholder="Question text or code snippet" value={tForm.questionText}
                 onChange={(e) => setTForm((p) => ({ ...p, questionText: e.target.value }))} disabled={tSubmitting} rows={4} style={{ resize: 'vertical' }} />
+              <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                Question type
+                <select className="input" value={tForm.questionType}
+                  onChange={(e) => setTForm((p) => ({ ...p, questionType: e.target.value as QuestionType }))}
+                  disabled={tSubmitting} style={{ marginTop: '0.3rem' }}>
+                  <option value="normal">Normal question</option>
+                  <option value="code_snippet">Code snippet question</option>
+                </select>
+              </label>
               <textarea className="input" placeholder="Expected answer" value={tForm.expectedAnswer}
                 onChange={(e) => setTForm((p) => ({ ...p, expectedAnswer: e.target.value }))}
                 disabled={tSubmitting} rows={3} style={{ resize: 'vertical' }} />
@@ -166,11 +176,12 @@ export default function QuestionsPage() {
           {!tLoading && !tError && questions.length > 0 && (
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <table className="table">
-                <thead><tr><th>Question</th><th>Topic</th><th>Expected Answer</th><th style={{ width: 80 }}>Actions</th></tr></thead>
+                <thead><tr><th>Question</th><th>Type</th><th>Topic</th><th>Expected Answer</th><th style={{ width: 80 }}>Actions</th></tr></thead>
                 <tbody>
                   {questions.map((q) => (
                     <tr key={q.id}>
                       <td>{formatTextDisplay(q.questionText)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{q.questionType === 'code_snippet' ? 'Code snippet' : 'Normal'}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{q.topic}</td>
                       <td style={{ color: '#555', fontSize: '0.875rem' }}>{formatExpectedAnswer(q.expectedAnswer)}</td>
                       <td><button className="btn btn-danger btn-sm" onClick={() => handleDeleteTheory(q.id, q.questionText)}>Delete</button></td>

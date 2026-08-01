@@ -95,12 +95,11 @@ export default function InterviewPage() {
           if (t.startTime) {
             const start = new Date(t.startTime).getTime();
             if (t.endTime) {
-              const end = new Date(t.endTime).getTime();
-              initialTimers[t.id] = Math.max(0, Math.floor((end - start) / 1000));
+              initialTimers[t.id] = t.elapsedSeconds ?? 0;
             } else {
               // running task
               const now = Date.now();
-              initialTimers[t.id] = Math.max(0, Math.floor((now - start) / 1000));
+              initialTimers[t.id] = (t.elapsedSeconds ?? 0) + Math.max(0, Math.floor((now - start) / 1000));
               runningId = t.id;
             }
           } else {
@@ -187,7 +186,7 @@ export default function InterviewPage() {
       // initialize timer for this task
       const start = updated.startTime ? new Date(updated.startTime).getTime() : Date.now();
       const now = Date.now();
-      setTimers((prev) => ({ ...prev, [taskId]: Math.max(0, Math.floor((now - start) / 1000)) }));
+      setTimers((prev) => ({ ...prev, [taskId]: (updated.elapsedSeconds ?? 0) + Math.max(0, Math.floor((now - start) / 1000)) }));
     } catch (err) {
       // surface errors to console for debugging
       // (UI remains resilient; we still start the local timer)
@@ -210,12 +209,7 @@ export default function InterviewPage() {
     try {
       const updated = await stopPracticalTaskTimer(idToStop, new Date().toISOString());
       setPracticalTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      // set final elapsed based on persisted times
-      if (updated.startTime && updated.endTime) {
-        const start = new Date(updated.startTime).getTime();
-        const end = new Date(updated.endTime).getTime();
-        setTimers((prev) => ({ ...prev, [idToStop]: Math.max(0, Math.floor((end - start) / 1000)) }));
-      }
+      setTimers((prev) => ({ ...prev, [idToStop]: updated.elapsedSeconds ?? prev[idToStop] ?? 0 }));
     } catch (err) {
       // surface errors to console for debugging
       // eslint-disable-next-line no-console
@@ -398,7 +392,8 @@ export default function InterviewPage() {
                     if (isAdded) return;
                     setPickedIds((prev) => {
                       const n = new Set(prev);
-                      n.has(q.id) ? n.delete(q.id) : n.add(q.id);
+                      if (n.has(q.id)) n.delete(q.id);
+                      else n.add(q.id);
                       return n;
                     });
                   }}
@@ -638,12 +633,12 @@ export default function InterviewPage() {
               {!isRunning ? (
                 <button onClick={() => startTimer(task.id)}
                   style={{ ...S.btn, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: 600 }}>
-                  ▶ Start Timer
+                  {elapsed > 0 ? '▶ Resume Timer' : '▶ Start Timer'}
                 </button>
               ) : (
                 <button onClick={() => stopTimer(task.id)}
                   style={{ ...S.btn, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 600 }}>
-                  ■ Stop Timer
+                  ❚❚ Pause Timer
                 </button>
               )}
             </div>
@@ -661,7 +656,7 @@ export default function InterviewPage() {
             {scoreErrors[task.id] && <p style={S.error}>{scoreErrors[task.id]}</p>}
             <div style={{ marginTop: '0.6rem', fontSize: '0.88rem', color: '#555' }}>
               <div>Start: {formatTimestampTo12Hour(task.startTime)}</div>
-              <div>End: {task.endTime ? formatTimestampTo12Hour(task.endTime) : (isRunning ? 'Running…' : '—')}</div>
+              <div>{task.endTime ? 'Paused: ' : 'End: '}{task.endTime ? formatTimestampTo12Hour(task.endTime) : (isRunning ? 'Running…' : '—')}</div>
             </div>
           </section>
         );

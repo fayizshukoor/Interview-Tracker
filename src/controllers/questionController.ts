@@ -13,20 +13,22 @@ function statusFromError(message: string): number {
 
 export async function createQuestion(req: Request, res: Response): Promise<void> {
   try {
-    const { questionText, expectedAnswer, topic } = req.body as {
+    const { questionText, expectedAnswer, topic, questionType } = req.body as {
       questionText?: string;
       expectedAnswer?: string;
       topic?: string;
+      questionType?: string;
     };
 
     if (typeof questionText  !== 'string' ||
         typeof expectedAnswer !== 'string' ||
-        typeof topic          !== 'string') {
-      res.status(400).json({ error: 'questionText, expectedAnswer, and topic are required.' });
+        typeof topic          !== 'string' ||
+        (questionType !== 'normal' && questionType !== 'code_snippet')) {
+      res.status(400).json({ error: 'questionText, expectedAnswer, topic, and a valid questionType are required.' });
       return;
     }
 
-    const question = await questionService.createQuestion(questionText, expectedAnswer, topic);
+    const question = await questionService.createQuestion(questionText, expectedAnswer, topic, questionType as 'normal' | 'code_snippet');
     res.status(201).json(question);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unexpected error.';

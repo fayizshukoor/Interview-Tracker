@@ -1,5 +1,5 @@
 import { pool } from '../config/db.js';
-import type { Question } from '../types/index.js';
+import type { Question, QuestionType } from '../types/index.js';
 
 // ---------------------------------------------------------------------------
 // Row type — matches the column names returned by PostgreSQL
@@ -10,6 +10,7 @@ interface QuestionRow {
   question_text: string;
   expected_answer: string;
   topic: string;
+  question_type: QuestionType;
   is_deleted: boolean;
   created_at: Date;
   updated_at: Date;
@@ -25,6 +26,7 @@ function toQuestion(row: QuestionRow): Question {
     questionText:   row.question_text,
     expectedAnswer: row.expected_answer,
     topic:          row.topic,
+    questionType:   row.question_type,
     isDeleted:      row.is_deleted,
     createdAt:      row.created_at,
     updatedAt:      row.updated_at,
@@ -42,12 +44,13 @@ export async function create(
   questionText: string,
   expectedAnswer: string,
   topic: string,
+  questionType: QuestionType,
 ): Promise<Question> {
   const { rows } = await pool.query<QuestionRow>(
-    `INSERT INTO questions (question_text, expected_answer, topic)
-     VALUES ($1, $2, $3)
-     RETURNING id, question_text, expected_answer, topic, is_deleted, created_at, updated_at`,
-    [questionText, expectedAnswer, topic],
+    `INSERT INTO questions (question_text, expected_answer, topic, question_type)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, question_text, expected_answer, topic, question_type, is_deleted, created_at, updated_at`,
+    [questionText, expectedAnswer, topic, questionType],
   );
 
   return toQuestion(rows[0]!);
@@ -59,7 +62,7 @@ export async function create(
  */
 export async function findById(id: string): Promise<Question | null> {
   const { rows } = await pool.query<QuestionRow>(
-    `SELECT id, question_text, expected_answer, topic, is_deleted, created_at, updated_at
+    `SELECT id, question_text, expected_answer, topic, question_type, is_deleted, created_at, updated_at
      FROM questions
      WHERE id = $1
        AND is_deleted = FALSE`,
@@ -74,7 +77,7 @@ export async function findById(id: string): Promise<Question | null> {
  */
 export async function findAll(): Promise<Question[]> {
   const { rows } = await pool.query<QuestionRow>(
-    `SELECT id, question_text, expected_answer, topic, is_deleted, created_at, updated_at
+    `SELECT id, question_text, expected_answer, topic, question_type, is_deleted, created_at, updated_at
      FROM questions
      WHERE is_deleted = FALSE
      ORDER BY topic ASC, question_text ASC`,
@@ -89,7 +92,7 @@ export async function findAll(): Promise<Question[]> {
  */
 export async function findByTopic(topic: string): Promise<Question[]> {
   const { rows } = await pool.query<QuestionRow>(
-    `SELECT id, question_text, expected_answer, topic, is_deleted, created_at, updated_at
+    `SELECT id, question_text, expected_answer, topic, question_type, is_deleted, created_at, updated_at
      FROM questions
      WHERE topic ILIKE $1
        AND is_deleted = FALSE

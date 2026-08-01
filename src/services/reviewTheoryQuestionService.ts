@@ -45,6 +45,7 @@ export async function addQuestionsToReview(
         question.questionText,
         question.expectedAnswer,
         question.topic,
+        question.questionType,
         existing.length + index,
       ));
   }
@@ -126,6 +127,7 @@ export async function addRandomQuestionsToReview(
         q.questionText,
         q.expectedAnswer,
         q.topic,
+        q.questionType,
         existing.length + index,
       ));
   }

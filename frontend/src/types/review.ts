@@ -27,6 +27,7 @@ export interface ReviewPracticalTask {
   score: number | null;
   startTime?: string | null;
   endTime?: string | null;
+  elapsedSeconds: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,6 +54,7 @@ export interface ReviewTheoryQuestion {
   questionText: string;
   expectedAnswer: string;
   topic: string;
+  questionType: 'normal' | 'code_snippet';
   orderIndex: number;
   result: 'correct' | 'incorrect' | null;
   createdAt: string;

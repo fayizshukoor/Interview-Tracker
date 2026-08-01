@@ -1,5 +1,5 @@
 import { pool } from '../config/db.js';
-import type { ReviewTheoryQuestion, QuestionResult } from '../types/index.js';
+import type { ReviewTheoryQuestion, QuestionResult, QuestionType } from '../types/index.js';
 
 // ---------------------------------------------------------------------------
 // Row type — matches the column names returned by PostgreSQL
@@ -12,6 +12,7 @@ interface ReviewTheoryQuestionRow {
   question_text: string;
   expected_answer: string;
   topic: string;
+  question_type: QuestionType;
   sort_order: number;
   result: QuestionResult | null;
   created_at: Date;
@@ -30,6 +31,7 @@ function toReviewTheoryQuestion(row: ReviewTheoryQuestionRow): ReviewTheoryQuest
     questionText:   row.question_text,
     expectedAnswer: row.expected_answer,
     topic:          row.topic,
+    questionType:   row.question_type,
     orderIndex:     row.sort_order,
     result:         row.result,
     createdAt:      row.created_at,
@@ -53,15 +55,16 @@ export async function create(
   questionText: string,
   expectedAnswer: string,
   topic: string,
+  questionType: QuestionType,
   orderIndex: number,
 ): Promise<ReviewTheoryQuestion> {
   const { rows } = await pool.query<ReviewTheoryQuestionRow>(
     `INSERT INTO review_theory_questions
-       (review_id, question_id, question_text, expected_answer, topic, sort_order)
-     VALUES ($1, $2, $3, $4, $5, $6)
+       (review_id, question_id, question_text, expected_answer, topic, question_type, sort_order)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id, review_id, question_id, question_text, expected_answer,
-               topic, sort_order, result, created_at, updated_at`,
-    [reviewId, questionId, questionText, expectedAnswer, topic, orderIndex],
+               topic, question_type, sort_order, result, created_at, updated_at`,
+    [reviewId, questionId, questionText, expectedAnswer, topic, questionType, orderIndex],
   );
 
   return toReviewTheoryQuestion(rows[0]!);
@@ -73,7 +76,7 @@ export async function create(
 export async function findByReviewId(reviewId: string): Promise<ReviewTheoryQuestion[]> {
   const { rows } = await pool.query<ReviewTheoryQuestionRow>(
     `SELECT id, review_id, question_id, question_text, expected_answer,
-            topic, sort_order, result, created_at, updated_at
+            topic, question_type, sort_order, result, created_at, updated_at
      FROM review_theory_questions
      WHERE review_id = $1
      ORDER BY sort_order ASC, created_at ASC`,
@@ -96,7 +99,7 @@ export async function updateResult(
      SET result = $1
      WHERE id = $2
      RETURNING id, review_id, question_id, question_text, expected_answer,
-               topic, sort_order, result, created_at, updated_at`,
+               topic, question_type, sort_order, result, created_at, updated_at`,
     [result, id],
   );
 

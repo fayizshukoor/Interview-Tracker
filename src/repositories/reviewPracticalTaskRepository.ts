@@ -13,6 +13,7 @@ interface ReviewPracticalTaskRow {
   score: string | null;     // pg returns NUMERIC as string
   start_time: Date | null;
   end_time: Date | null;
+  elapsed_seconds: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -30,12 +31,13 @@ function toTask(row: ReviewPracticalTaskRow): ReviewPracticalTask {
     score: row.score !== null ? parseFloat(row.score) : null,
     startTime: row.start_time ?? null,
     endTime: row.end_time ?? null,
+    elapsedSeconds: row.elapsed_seconds,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-const COLUMNS = `id, review_id, task_text, expected_answer, score, start_time, end_time, created_at, updated_at`;
+const COLUMNS = `id, review_id, task_text, expected_answer, score, start_time, end_time, elapsed_seconds, created_at, updated_at`;
 
 // ---------------------------------------------------------------------------
 // Repository methods
@@ -97,7 +99,7 @@ export async function updateScore(
 export async function setStartTime(id: string, startedAt: string): Promise<ReviewPracticalTask | null> {
   const { rows } = await pool.query<ReviewPracticalTaskRow>(
     `UPDATE review_practical_tasks
-     SET start_time = $1
+     SET start_time = $1, end_time = NULL
      WHERE id = $2
      RETURNING ${COLUMNS}`,
     [startedAt, id],
@@ -108,7 +110,12 @@ export async function setStartTime(id: string, startedAt: string): Promise<Revie
 export async function setEndTime(id: string, endedAt: string): Promise<ReviewPracticalTask | null> {
   const { rows } = await pool.query<ReviewPracticalTaskRow>(
     `UPDATE review_practical_tasks
-     SET end_time = $1
+     SET end_time = $1,
+         elapsed_seconds = elapsed_seconds + CASE
+           WHEN start_time IS NOT NULL AND end_time IS NULL
+           THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM ($1::timestamptz - start_time)))::INTEGER)
+           ELSE 0
+         END
      WHERE id = $2
      RETURNING ${COLUMNS}`,
     [endedAt, id],

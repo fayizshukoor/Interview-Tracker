@@ -12,11 +12,14 @@ export interface User {
   updatedAt: Date;
 }
 
+export type QuestionType = 'normal' | 'code_snippet';
+
 export interface Question {
   id: string;
   questionText: string;
   expectedAnswer: string;
   topic: string;
+  questionType: QuestionType;
   isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -43,6 +46,7 @@ export interface ReviewTheoryQuestion {
   questionText: string;
   expectedAnswer: string;
   topic: string;
+  questionType: QuestionType;
   orderIndex: number;
   result: QuestionResult | null;
   createdAt: Date;
@@ -65,6 +69,7 @@ export interface ReviewPracticalTask {
   score: number | null;
   startTime?: Date | null;
   endTime?: Date | null;
+  elapsedSeconds: number;
   createdAt: Date;
   updatedAt: Date;
 }

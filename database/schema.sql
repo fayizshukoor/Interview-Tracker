@@ -45,6 +45,7 @@ CREATE TABLE questions (
     question_text    TEXT        NOT NULL,
     expected_answer  TEXT        NOT NULL,
     topic            VARCHAR(255) NOT NULL,
+    question_type    VARCHAR(20)  NOT NULL DEFAULT 'normal' CHECK (question_type IN ('normal', 'code_snippet')),
     is_deleted       BOOLEAN     NOT NULL DEFAULT FALSE,   -- soft delete
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -105,6 +106,7 @@ CREATE TABLE review_theory_questions (
     question_text    TEXT            NOT NULL,
     expected_answer  TEXT            NOT NULL,
     topic            VARCHAR(255)    NOT NULL,
+    question_type    VARCHAR(20)     NOT NULL DEFAULT 'normal' CHECK (question_type IN ('normal', 'code_snippet')),
     result           question_result NULL,    -- NULL until interviewer marks it
     created_at       TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ     NOT NULL DEFAULT now(),
@@ -134,6 +136,7 @@ CREATE TABLE review_practical_tasks (
     review_id   UUID           NOT NULL,
     task_text   TEXT           NOT NULL,
     score       NUMERIC(5, 2)  NOT NULL CHECK (score BETWEEN 0 AND 100),
+    elapsed_seconds INTEGER    NOT NULL DEFAULT 0,
     created_at  TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ    NOT NULL DEFAULT now(),
 
