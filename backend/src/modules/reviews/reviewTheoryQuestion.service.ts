@@ -1,0 +1,146 @@
+import * as reviewTheoryQuestionRepository from './reviewTheoryQuestion.repository.js';
+import * as questionRepository from '../questions/question.repository.js';
+import * as reviewRepository from './review.repository.js';
+import * as reviewPendingTopicRepository from './reviewPendingTopic.repository.js';
+import type { ReviewTheoryQuestion, QuestionResult } from '../../types/index.js';
+
+export async function addQuestionsToReview(
+  reviewId: string,
+  questionIds: string[],
+): Promise<ReviewTheoryQuestion[]> {
+  const review = await reviewRepository.findById(reviewId);
+  if (!review) {
+    throw new Error(`Review with id "${reviewId}" not found.`);
+  }
+
+  // Validate every requested question exists in the bank
+  const questions = await Promise.all(
+    questionIds.map((qId) => questionRepository.findById(qId)),
+  );
+
+  const missing = questionIds.filter((_, i) => questions[i] === null);
+  if (missing.length > 0) {
+    throw new Error(`Questions not found: ${missing.join(', ')}.`);
+  }
+
+  // Check which questions are already part of this review
+  const duplicateFlags = await Promise.all(
+    questionIds.map((qId) => reviewTheoryQuestionRepository.exists(reviewId, qId)),
+  );
+
+  const newQuestions = questions.filter((_q, i: number) => !duplicateFlags[i]);
+
+  if (newQuestions.length === 0) {
+    throw new Error('All selected questions are already part of this review.');
+  }
+
+  // Insert snapshots in the requested order.
+  const existing = await reviewTheoryQuestionRepository.findByReviewId(reviewId);
+  const added: ReviewTheoryQuestion[] = [];
+  for (const [index, q] of newQuestions.entries()) {
+      const question = q!;
+      added.push(await reviewTheoryQuestionRepository.create(
+        reviewId,
+        question.id,
+        question.questionText,
+        question.expectedAnswer,
+        question.topic,
+        question.questionType,
+        existing.length + index,
+      ));
+  }
+
+  return added;
+}
+
+export async function getQuestionsForReview(
+  reviewId: string,
+): Promise<ReviewTheoryQuestion[]> {
+  const review = await reviewRepository.findById(reviewId);
+  if (!review) {
+    throw new Error(`Review with id "${reviewId}" not found.`);
+  }
+
+  return reviewTheoryQuestionRepository.findByReviewId(reviewId);
+}
+
+export async function markQuestionResult(
+  reviewTheoryQuestionId: string,
+  result: QuestionResult,
+): Promise<ReviewTheoryQuestion> {
+  const updated = await reviewTheoryQuestionRepository.updateResult(
+    reviewTheoryQuestionId,
+    result,
+  );
+
+  if (!updated) {
+    throw new Error(`Review question with id "${reviewTheoryQuestionId}" not found.`);
+  }
+
+  if (result === 'incorrect') {
+    await reviewPendingTopicRepository.create(
+      updated.reviewId,
+      updated.topic,
+      updated.questionText,
+    );
+  }
+
+  return updated;
+}
+
+export async function addRandomQuestionsToReview(
+  reviewId: string,
+  count: number,
+  topic?: string,
+): Promise<ReviewTheoryQuestion[]> {
+  const review = await reviewRepository.findById(reviewId);
+  if (!review) {
+    throw new Error(`Review with id "${reviewId}" not found.`);
+  }
+
+  if (count <= 0) {
+    throw new Error('Count must be greater than zero.');
+  }
+
+  const pool = topic
+    ? await questionRepository.findByTopic(topic)
+    : await questionRepository.findAll();
+
+  if (pool.length < count) {
+    throw new Error('Not enough questions available.');
+  }
+
+  // Fisher-Yates partial shuffle — pick `count` unique questions in O(count)
+  const shuffled = [...pool];
+  for (let i = 0; i < count; i++) {
+    const j = i + Math.floor(Math.random() * (shuffled.length - i));
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+  }
+  const selected = shuffled.slice(0, count);
+
+  const existing = await reviewTheoryQuestionRepository.findByReviewId(reviewId);
+  const added: ReviewTheoryQuestion[] = [];
+  for (const [index, q] of selected.entries()) {
+    added.push(await reviewTheoryQuestionRepository.create(
+        reviewId,
+        q.id,
+        q.questionText,
+        q.expectedAnswer,
+        q.topic,
+        q.questionType,
+        existing.length + index,
+      ));
+  }
+
+  return added;
+}
+
+export async function reorderQuestions(reviewId: string, orderedIds: string[]): Promise<ReviewTheoryQuestion[]> {
+  const current = await getQuestionsForReview(reviewId);
+  const currentIds = new Set(current.map((question) => question.id));
+  if (orderedIds.length !== current.length || new Set(orderedIds).size !== orderedIds.length || orderedIds.some((id) => !currentIds.has(id))) {
+    throw new Error('orderedIds must contain every review question exactly once.');
+  }
+  await reviewTheoryQuestionRepository.reorder(reviewId, orderedIds);
+  return getQuestionsForReview(reviewId);
+}

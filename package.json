@@ -1,42 +1,22 @@
 {
-  "name": "interview-tracker",
+  "name": "interview-tracker-workspace",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "dev": "concurrently -n \"backend,frontend\" -c \"blue.bold,cyan.bold\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "tsx watch src/server.ts",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "build": "npm run build:backend && npm run build:frontend",
-    "build:backend": "tsc",
-    "build:frontend": "npm --prefix frontend run build",
-    "start": "node dist/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "private": true,
   "type": "module",
-  "dependencies": {
-    "@types/nodemailer": "^8.0.1",
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^10.0.14",
-    "pg": "^8.22.0"
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"backend,frontend\" -c \"blue.bold,cyan.bold\" \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "start": "npm run start --workspace=backend"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.2",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.2",
-    "@types/node": "^26.0.0",
-    "@types/pg": "^8.20.0",
-    "concurrently": "^10.0.7",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.23.15",
-    "typescript": "^6.0.3"
+    "concurrently": "^10.0.7"
   }
 }

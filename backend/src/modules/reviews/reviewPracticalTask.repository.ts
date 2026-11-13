@@ -1,0 +1,152 @@
+import { pool } from '../../config/db.js';
+import type { ReviewPracticalTask } from '../../types/index.js';
+
+// ---------------------------------------------------------------------------
+// Row type — matches the column names returned by PostgreSQL
+// ---------------------------------------------------------------------------
+
+interface ReviewPracticalTaskRow {
+  id: string;
+  review_id: string;
+  task_text: string;
+  expected_answer: string | null;
+  score: string | null;     // pg returns NUMERIC as string
+  start_time: Date | null;
+  end_time: Date | null;
+  active_start_time: Date | null;
+  elapsed_seconds: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// ---------------------------------------------------------------------------
+// Mapper
+// ---------------------------------------------------------------------------
+
+function toTask(row: ReviewPracticalTaskRow): ReviewPracticalTask {
+  return {
+    id: row.id,
+    reviewId: row.review_id,
+    taskText: row.task_text,
+    expectedAnswer: row.expected_answer,
+    score: row.score !== null ? parseFloat(row.score) : null,
+    startTime: row.start_time ?? null,
+    endTime: row.end_time ?? null,
+    elapsedSeconds: row.elapsed_seconds,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+const COLUMNS = `id, review_id, task_text, expected_answer, score, start_time, end_time, active_start_time, elapsed_seconds, created_at, updated_at`;
+
+// ---------------------------------------------------------------------------
+// Repository methods
+// ---------------------------------------------------------------------------
+
+/**
+ * Insert a new practical task for a review.
+ * score and expectedAnswer are optional at creation time.
+ */
+export async function create(
+  reviewId: string,
+  taskText: string,
+  expectedAnswer: string | null,
+): Promise<ReviewPracticalTask> {
+  const { rows } = await pool.query<ReviewPracticalTaskRow>(
+    `INSERT INTO review_practical_tasks (review_id, task_text, expected_answer, start_time, end_time)
+     VALUES ($1, $2, $3, NULL, NULL)
+     RETURNING ${COLUMNS}`,
+    [reviewId, taskText, expectedAnswer],
+  );
+
+  return toTask(rows[0]!);
+}
+
+/**
+ * Return all practical tasks for a review, ordered by creation time.
+ */
+export async function findByReviewId(reviewId: string): Promise<ReviewPracticalTask[]> {
+  const { rows } = await pool.query<ReviewPracticalTaskRow>(
+    `SELECT ${COLUMNS}
+     FROM review_practical_tasks
+     WHERE review_id = $1
+     ORDER BY created_at ASC`,
+    [reviewId],
+  );
+
+  return rows.map(toTask);
+}
+
+/**
+ * Update the score of a practical task.
+ * Returns the updated task, or null if the id is not found.
+ */
+export async function updateScore(
+  id: string,
+  score: number,
+): Promise<ReviewPracticalTask | null> {
+  const { rows } = await pool.query<ReviewPracticalTaskRow>(
+    `UPDATE review_practical_tasks
+     SET score = $1
+     WHERE id = $2
+     RETURNING ${COLUMNS}`,
+    [score, id],
+  );
+
+  return rows[0] ? toTask(rows[0]) : null;
+}
+
+export async function setStartTime(id: string, startedAt: string): Promise<ReviewPracticalTask | null> {
+  const { rows } = await pool.query<ReviewPracticalTaskRow>(
+    `UPDATE review_practical_tasks
+     SET start_time = COALESCE(start_time, $1),
+         active_start_time = $1,
+         end_time = NULL
+     WHERE id = $2
+     RETURNING ${COLUMNS}`,
+    [startedAt, id],
+  );
+  return rows[0] ? toTask(rows[0]) : null;
+}
+
+export async function setEndTime(id: string, endedAt: string): Promise<ReviewPracticalTask | null> {
+  const { rows } = await pool.query<ReviewPracticalTaskRow>(
+    `UPDATE review_practical_tasks
+     SET end_time = $1,
+         active_start_time = NULL,
+         elapsed_seconds = elapsed_seconds + CASE
+           WHEN active_start_time IS NOT NULL AND end_time IS NULL
+           THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM ($1::timestamptz - active_start_time)))::INTEGER)
+           ELSE 0
+         END
+     WHERE id = $2
+     RETURNING ${COLUMNS}`,
+    [endedAt, id],
+  );
+  return rows[0] ? toTask(rows[0]) : null;
+}
+
+export async function resetTimer(id: string): Promise<ReviewPracticalTask | null> {
+  const { rows } = await pool.query<ReviewPracticalTaskRow>(
+    `UPDATE review_practical_tasks
+     SET start_time = NULL, end_time = NULL, active_start_time = NULL, elapsed_seconds = 0
+     WHERE id = $1
+     RETURNING ${COLUMNS}`,
+    [id],
+  );
+  return rows[0] ? toTask(rows[0]) : null;
+}
+
+/**
+ * Delete a practical task by id.
+ * Returns true if a row was deleted, false if not found.
+ */
+export async function deleteById(id: string): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `DELETE FROM review_practical_tasks WHERE id = $1`,
+    [id],
+  );
+
+  return (rowCount ?? 0) > 0;
+}
