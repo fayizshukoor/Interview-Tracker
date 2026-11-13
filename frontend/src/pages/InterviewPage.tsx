@@ -400,6 +400,10 @@ export default function InterviewPage() {
   const current = questions[currentIndex];
   const isLast = total > 0 && currentIndex === total - 1;
   const isMarked = current?.result !== null && current?.result !== undefined;
+  const theoryCorrect = questions.filter((q) => q.result === 'correct').length;
+  const theoryIncorrect = questions.filter((q) => q.result === 'incorrect').length;
+  const theoryUnanswered = questions.filter((q) => !q.result).length;
+  const theoryScorePercent = total > 0 ? Math.round((theoryCorrect / total) * 100) : 0;
 
   // ── Render: loading / error ───────────────────────────────────────────────
   if (loading) return <Wrap><p>Loading…</p></Wrap>;
@@ -707,6 +711,99 @@ export default function InterviewPage() {
           <button onClick={openPracticalBank} style={{ ...S.btn, fontWeight: 600, color: '#1a56db', border: '1px solid #bfdbfe' }}>+ Add from Bank</button>
           <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>{practicalTasks.length} task{practicalTasks.length !== 1 ? 's' : ''}</span>
         </div>
+      </div>
+
+      {/* Theory Performance Banner */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderLeft: '4px solid #1a56db',
+          borderRadius: '8px',
+          padding: '1rem 1.25rem',
+          marginBottom: '1.5rem',
+        }}
+      >
+        <div>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Theory Evaluation Results
+          </span>
+          {total === 0 ? (
+            <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.9rem' }}>
+              No theory questions were added to this review.
+            </p>
+          ) : (
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginTop: '0.2rem' }}>
+              Score:{' '}
+              <span style={{ color: theoryScorePercent >= 70 ? '#15803d' : theoryScorePercent >= 40 ? '#b45309' : '#b91c1c' }}>
+                {theoryScorePercent}%
+              </span>
+              <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#64748b', marginLeft: '0.5rem' }}>
+                ({theoryCorrect} of {total} correct)
+              </span>
+            </div>
+          )}
+        </div>
+
+        {total > 0 && (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span
+              style={{
+                padding: '0.25rem 0.6rem',
+                borderRadius: '999px',
+                background: '#dcfce7',
+                color: '#166534',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+              }}
+            >
+              ✓ {theoryCorrect} Correct
+            </span>
+            <span
+              style={{
+                padding: '0.25rem 0.6rem',
+                borderRadius: '999px',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+              }}
+            >
+              ✗ {theoryIncorrect} Incorrect
+            </span>
+            {theoryUnanswered > 0 && (
+              <span
+                style={{
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: '999px',
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                }}
+              >
+                {theoryUnanswered} Unanswered
+              </span>
+            )}
+            <button
+              onClick={() => setPhase('theory')}
+              style={{
+                ...S.btn,
+                fontSize: '0.82rem',
+                padding: '0.3rem 0.75rem',
+                color: '#475569',
+                marginLeft: '0.25rem',
+              }}
+            >
+              ← View Theory Questions
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Add task */}
